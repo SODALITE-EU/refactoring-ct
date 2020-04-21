@@ -95,8 +95,6 @@ class ControllerManagerRules:
         return direction(num * (10 ** places)) / float(10 ** places)
 
     def update(self):
-        if self.nextAction > time.time():
-            return
 
         # update the models data
         self.models = {json_model["name"]: Model(json_data=json_model)

@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     sched = BackgroundScheduler()
     sched.add_job(control, 'interval', seconds=args.time)
-    sched.start()
+    # sched.start() TODO: uncomment
 
     status = "running"
     logging.info(status)

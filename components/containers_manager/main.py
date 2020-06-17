@@ -31,7 +31,8 @@ def containers():
         data = request.get_json()
         app.logger.info("Request: " + str(data))
 
-        app.logger.info("Updating container %s with quota %d", data["container_id"], data["cpu_quota"])
+        app.logger.info("Updating container %s with quota %d",
+                        data["container_id"], data["cpu_quota"])
 
         # search and update the container quota
         for container in containers:
@@ -121,7 +122,8 @@ def read_config_file(config_file):
                     models.append(
                         Model(model["name"], model["version"], model["sla"], model["alpha"], model["profiled_rt"]))
                 else:
-                    models.append(Model(model["name"], model["version"], model["sla"], model["alpha"]))
+                    models.append(
+                        Model(model["name"], model["version"], model["sla"], model["alpha"]))
 
         logging.info("+ %d models", len(models))
 
@@ -139,8 +141,10 @@ def read_config_file(config_file):
                               container["port"],
                               container["device"],
                               container["quota"]))
-        logging.info("+ %d CPU containers", len(list(filter(lambda m: m.device == Device.CPU, containers))))
-        logging.info("+ %d GPU containers", len(list(filter(lambda m: m.device == Device.GPU, containers))))
+        logging.info("+ %d CPU containers",
+                     len(list(filter(lambda m: m.device == Device.CPU, containers))))
+        logging.info("+ %d GPU containers",
+                     len(list(filter(lambda m: m.device == Device.GPU, containers))))
         logging.info([container.to_json() for container in containers])
 
 
@@ -157,13 +161,16 @@ def containers_linking(actuator_port):
         containers_on_node = list(filter(lambda c: c.node == node, containers))
 
         try:
-            response = requests.get("http://" + node + ":" + actuator_port + CONTAINERS_LIST_ENDPOINT)
-            logging.info("Response: %d %s", response.status_code, response.text)
+            response = requests.get(
+                "http://" + node + ":" + actuator_port + CONTAINERS_LIST_ENDPOINT)
+            logging.info("Response: %d %s",
+                         response.status_code, response.text)
 
             if response.ok:
                 # get the containers from the response
                 running_containers = response.json()
-                logging.info("Found %d containers on node %s", len(running_containers), node)
+                logging.info("Found %d containers on node %s",
+                             len(running_containers), node)
 
                 # set the containers id
                 linked_containers = 0
@@ -171,18 +178,22 @@ def containers_linking(actuator_port):
                     for running_container in running_containers:
                         if container.container == running_container["container_name"]:
                             container.container_id = running_container["id"]
-                            logging.info("+ link: %s <-> %s", container.model, container.container_id)
+                            logging.info("+ link: %s <-> %s",
+                                         container.model, container.container_id)
                             linked_containers = linked_containers + 1
                             break
-                logging.info("Linked %d containers on node %s", linked_containers, node)
+                logging.info("Linked %d containers on node %s",
+                             linked_containers, node)
             else:
                 # disable model if actuator_controller response status is not 200
-                logging.info("No containers found on node %s, (response not ok)", node)
+                logging.info(
+                    "No containers found on node %s, (response not ok)", node)
                 for container in containers_on_node:
                     container.active = False
 
         except Exception as e:
-            logging.warning("Disabling containers for node: %s because %s", node, e)
+            logging.warning(
+                "Disabling containers for node: %s because %s", node, e)
 
             # disable containers if actuator_controller not reachable
             for container in containers_on_node:
@@ -229,11 +240,11 @@ if __name__ == "__main__":
 
     status = "linking containers with id"
     logging.info(status)
-    containers_linking(args.actuator_port)
+    # containers_linking(args.actuator_port) TODO: uncomment
 
     status = "reset quota"
     logging.info(status)
-    quota_reset(args.actuator_port, float(args.quota))
+    # quota_reset(args.actuator_port, float(args.quota)) TODO: uncomment
 
     # start
     status = "running"

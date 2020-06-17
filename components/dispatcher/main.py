@@ -113,18 +113,23 @@ def create_app(containers_manager="http://localhost:5001",
     logging.info("Getting models from: %s", models_endpoint)
     logging.info("Getting containers from: %s", containers_endpoint)
 
-    models = [Model(json_data=json_model) for json_model in get_data(models_endpoint)]
+    models = [Model(json_data=json_model)
+              for json_model in get_data(models_endpoint)]
     logging.info("Models: %s", [model.to_json() for model in models])
-    containers = [Container(json_data=json_container) for json_container in get_data(containers_endpoint)]
-    logging.info("Containers: %s", [container.to_json() for container in containers])
-    logging.info("Found %d models and %d containers", len(models), len(containers))
+    containers = [Container(json_data=json_container)
+                  for json_container in get_data(containers_endpoint)]
+    logging.info("Containers: %s", [container.to_json()
+                                    for container in containers])
+    logging.info("Found %d models and %d containers",
+                 len(models), len(containers))
 
     # init reqs queues
     reqs_queues = {model.name: queue.Queue() for model in models}
     responses_list = {model.name: [] for model in models}
 
     # init policy
-    queues_policies = QueuesPolicies(reqs_queues, responses_list, models, logging)
+    queues_policies = QueuesPolicies(
+        reqs_queues, responses_list, models, logging)
     gpu_policy = queues_policies.policies.get(gpu_queues_policy)
     cpu_policy = queues_policies.policies.get(cpu_queues_policy)
     logging.info("Policy for GPUs: %s", gpu_queues_policy)
@@ -139,13 +144,16 @@ def create_app(containers_manager="http://localhost:5001",
     # init dispatchers
     status = "Init dispatchers"
     logging.info(status)
-    dispatcher_gpu = Dispatcher(app.logger, models, containers, DispatchingPolicy.ROUND_ROBIN, Device.GPU)
-    dispatcher_cpu = Dispatcher(app.logger, models, containers, DispatchingPolicy.ROUND_ROBIN, Device.CPU)
+    dispatcher_gpu = Dispatcher(
+        app.logger, models, containers, DispatchingPolicy.ROUND_ROBIN, Device.GPU)
+    dispatcher_cpu = Dispatcher(
+        app.logger, models, containers, DispatchingPolicy.ROUND_ROBIN, Device.CPU)
 
     # start the send requests thread
     status = "Start send reqs thread"
     logging.info(status)
-    log_consumer_threads_pool = ThreadPoolExecutor(max_workers=max_log_consumers)
+    log_consumer_threads_pool = ThreadPoolExecutor(
+        max_workers=max_log_consumers)
     for i in range(max_log_consumers):
         log_consumer_threads_pool.submit(log_consumer)
 
@@ -157,13 +165,15 @@ def create_app(containers_manager="http://localhost:5001",
         # threads that pools from the apps queues and dispatch to gpus
         polling_gpu_threads_pool = ThreadPoolExecutor(max_workers=max_polling)
         for i in range(max_polling):
-            polling_gpu_threads_pool.submit(queues_pooling, dispatcher_gpu, gpu_policy, max_consumers_gpu)
+            polling_gpu_threads_pool.submit(
+                queues_pooling, dispatcher_gpu, gpu_policy, max_consumers_gpu)
 
     if list(filter(lambda c: c.device == Device.CPU and c.active, containers)):
         # threads that pools from the apps queues and dispatch to cpus
         pooling_cpu_threads_pool = ThreadPoolExecutor(max_workers=max_polling)
         for i in range(max_polling):
-            pooling_cpu_threads_pool.submit(queues_pooling, dispatcher_cpu, cpu_policy, max_consumers_cpu)
+            pooling_cpu_threads_pool.submit(
+                queues_pooling, dispatcher_cpu, cpu_policy, max_consumers_cpu)
 
     # start
     status = "Running"

@@ -1,0 +1,22 @@
+version: "3"
+services:
+  actuator:
+    build: actuator
+    ports:
+      - "5000:5000"
+  containers_manager:
+    build: containers_manager
+    ports:
+      - "5001:5001"
+  requests_store:
+    build: requests_store
+    ports:
+      - "5002:5002"
+  controller:
+    build: controller
+    ports:
+      - "5003:5003"
+  dispatcher:
+    build: dispatcher
+    ports:
+      - "8000:8000"

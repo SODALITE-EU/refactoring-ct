@@ -3,10 +3,10 @@ import math
 import time
 import requests
 import logging
-from .models.model import Model
-from .models.container import Container
-from .models.device import Device
-from .models.controller import Controller
+from models.model import Model
+from models.container import Container
+from models.device import Device
+from models.controller import Controller
 
 
 class ControllerManagerRules:
@@ -36,6 +36,7 @@ class ControllerManagerRules:
 
         self.cooldown = cooldown
         self.step = step
+        self.next_action = 0
 
         self.models = {}
         self.nodes = ()
@@ -75,7 +76,7 @@ class ControllerManagerRules:
         t = time.time()
         for container in list(filter(lambda c: c.device == Device.CPU and c.active, self.containers)):
             c = Controller(container)
-            c.nextAction = t
+            c.next_action = t
             self.controllers.append(c)
 
     def mean(self, list):
@@ -149,16 +150,20 @@ class ControllerManagerRules:
                 controller.rt_sla = self.models[controller.container.model].sla
                 controller.rt_cpu = reqs_rt_cpus
                 controller.rt_gpu = reqs_rt_gpus
-                controller.rt_all = reqs_rt_gpus*gpu_share + reqs_rt_cpus*cpu_share
+                controller.rt_all = 0
+                if reqs_rt_gpus != None:
+                    controller.rt_all += reqs_rt_gpus*gpu_share
+                if reqs_rt_cpus != None:
+                    controller.rt_all += reqs_rt_cpus*cpu_share
 
                 t = time.time()
                 oldNc = controller.nc
 
-                if t > controller.nextAction:
-                    if controller.rt_all > controller.rt_sla*SCALE_OUT_THRESHOLD:
+                if t > controller.next_action:
+                    if controller.rt_all > controller.rt_sla*ControllerManagerRules.SCALE_OUT_THRESHOLD:
                         controller.nc = min(
                             controller.nc + self.step, self.max_c)
-                    elif controller.rt_all < controller.rt_sla*SCALE_IN_THRESHOLD:
+                    elif controller.rt_all < controller.rt_sla*ControllerManagerRules.SCALE_IN_THRESHOLD:
                         controller.nc = max(
                             controller.nc - self.step, self.min_c)
                     else:
@@ -167,7 +172,7 @@ class ControllerManagerRules:
                             max(controller.nc, self.min_c), self.max_c)
 
                 if oldNc != controller.nc:
-                    controller.nextAction = t + self.cooldown
+                    controller.next_action = t + self.cooldown
 
                 # log
                 log_str += '<br/><strong>model: {}, {} GPU containers, {} CPU containers</strong>' \
@@ -196,6 +201,8 @@ class ControllerManagerRules:
 
             # log controllers
             for controller in controller_for_node:
+                rt_gpu = controller.rt_gpu if controller.rt_gpu != None else 0
+                rt_cpu = controller.rt_cpu if controller.rt_cpu != None else 0
                 log_str += "controller for {}:<ul>" \
                            "<li>cores: {:.2f}</li>" \
                            "<li>rt_sla: {:.2f}</li>" \
@@ -204,8 +211,8 @@ class ControllerManagerRules:
                            "</ul>".format(controller.container.model,
                                           controller.nc,
                                           controller.rt_sla,
-                                          controller.rt_gpu,
-                                          controller.rt_cpu)
+                                          rt_gpu,
+                                          rt_cpu)
             tot_reqs_cores = sum(map(lambda c: c.nc, controller_for_node))
             log_str += "<strong>total cores: {:.2f} / {}</strong>".format(
                 tot_reqs_cores, self.max_c)

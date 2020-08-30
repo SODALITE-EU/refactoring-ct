@@ -11,7 +11,7 @@ This component takes as input requests and dispatches them to devices.
 
 ### Containers Manager
 This component manages containers and models and all their relative information.
-
+ 
 [More](./components/containers_manager/)
 
 ### Requests Store

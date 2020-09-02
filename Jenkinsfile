@@ -9,11 +9,24 @@ pipeline {
     }
     stage('test ct-refactoring') {
         steps {
-            sh "pip3 install -r requirements.txt"
-            sh "pip3 install -e ."
-            sh "python3 -m pytest --pyargs -s ${WORKSPACE}/tests"
+            sh  """ #!/bin/bash 
+                    pip3 install -r requirements.txt
+                    pip3 install -e .
+                    python3 -m pytest --pyargs -s ${WORKSPACE}/tests --junitxml="results.xml" --cov=components --cov=models --cov-report xml tests/
+                """
+            junit 'results.xml'
         }
-    }   
+    }
+    stage('SonarQube analysis'){
+        environment {
+          scannerHome = tool 'SonarQubeScanner'
+        }
+        steps {
+            withSonarQubeEnv('SonarCloud') {
+                      sh "${scannerHome}/bin/sonar-scanner"
+            }
+        }
+    }
   }
   post {
     failure {

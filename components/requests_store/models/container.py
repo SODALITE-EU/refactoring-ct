@@ -20,10 +20,20 @@ class Container:
             self.node = node
             self.port = port
             self.device = device
-            self.endpoint = "http://" + node + ":" + str(port)
+            if node:
+                self.endpoint = "http://" + node + ":" + str(port)
+            else:
+                self.endpoint = None
             self.quota = quota
 
             self.container_id = None
+
+    def set_node(self, node):
+        if node:
+            self.node = node
+            self.endpoint = "http://" + node + ":" + str(self.port)
+        else:
+            self.endpoint = None
 
     def __str__(self):
         return 'C: {}, M: {}/V{}'.format(str(self.container), self.model, self.version)

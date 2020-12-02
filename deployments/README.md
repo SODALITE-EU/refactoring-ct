@@ -45,12 +45,21 @@ cd components/actuator/
 docker build -t tfcontrolled-actuator:local .
 ```
 
+- Mount the folder with the models 
+```
+minikube mount $HOME:/home/user
+```
 
 - Create the K8s deployment and service
 ```
 kubectl create -f deployment-tfcontrolled.yml
 kubectl create -f service-tfcontrolled.yml
 kubectl get po,no,deploy,svc
+```
+
+- Export the service
+```
+minikube service nodemanager-svc
 ```
 
 #### Launch

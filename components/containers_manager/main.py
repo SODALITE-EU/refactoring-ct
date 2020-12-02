@@ -1,21 +1,27 @@
 import argparse
-
+import time
 from flask import Flask, jsonify
 from flask import request
 import logging
 import yaml
+import json
 import requests
 from flask_cors import CORS
 from models.model import Model
 from models.device import Device
 from models.container import Container
+from kubernetes import client, config
+from configurator import Configurator
 
 app = Flask(__name__)
 CORS(app)
 
-CONFIG_FILE = "config/remote.yml"
-ACTUATOR_PORT = "5000"
+CONFIG_FILE = "config/config.json"
 CONTAINERS_LIST_ENDPOINT = "/containers"
+
+# constants set after configuration
+INIT_QUOTA = None
+ACTUATOR_PORT = None
 
 
 @app.route('/', methods=['GET'])
@@ -105,47 +111,156 @@ def models_by_node(node):
     return jsonify([model.to_json() for model in models_node])
 
 
-def read_config_file(config_file):
-    """
-    Read the configuration file and init the containers variable
-    """
-    with open(config_file, 'r') as file:
-        data = file.read()
-        config = yaml.load(data, Loader=yaml.FullLoader)
+def check_write(res):
+    if res > 0:
+        logging.info("write ok")
+    else:
+        logging.error("write error")
 
-        # models
-        if config["models"]:
-            logging.info("Found %d models", len(config["models"]))
 
-            for model in config["models"]:
-                if "profiled_rt" in model:
-                    models.append(
-                        Model(model["name"], model["version"], model["sla"], model["alpha"], model["profiled_rt"]))
-                else:
-                    models.append(
-                        Model(model["name"], model["version"], model["sla"], model["alpha"]))
+def clean_empty(d):
+    if not isinstance(d, (dict, list)):
+        return d
+    if isinstance(d, list):
+        return [v for v in (clean_empty(v) for v in d) if v]
+    return {k: v for k, v in ((k, clean_empty(v)) for k, v in d.items()) if v}
 
-        logging.info("+ %d models", len(models))
 
-        # containers
-        if config["containers"]:
-            logging.info("Found %d containers", len(config["containers"]))
+@app.route('/configure', methods=['POST'])
+def configure():
+    global models
+    global containers
+    global status
+    global INIT_QUOTA
+    global ACTUATOR_PORT
+    models = []
 
-            for container in config["containers"]:
-                containers.append(
-                    Container(container["model"],
-                              container["version"],
-                              container["active"],
-                              container["container"],
-                              container["node"],
-                              container["port"],
-                              container["device"],
-                              container["quota"]))
-        logging.info("+ %d CPU containers",
-                     len(list(filter(lambda m: m.device == Device.CPU, containers))))
-        logging.info("+ %d GPU containers",
-                     len(list(filter(lambda m: m.device == Device.GPU, containers))))
-        logging.info([container.to_json() for container in containers])
+    logging.info("configuration started...")
+
+    # read from configuration
+    data = request.get_json()
+    if not all(d in data for d in ["models", "quota", "actuator_port", "workers", "tf_serving_models_path",
+                                   "available_gpus", "actuator_image", "k8s_service_type"]):
+        return {"error": "config data missing"}, 404
+    for model in data["models"]:
+        if "profiled_rt" in model:
+            models.append(
+                Model(model["name"], model["version"], model["sla"], model["alpha"], model["profiled_rt"]))
+        else:
+            models.append(
+                Model(model["name"], model["version"], model["sla"], model["alpha"]))
+
+    # read other params
+    INIT_QUOTA = data["quota"]
+    ACTUATOR_PORT = data["actuator_port"]
+    workers = data["workers"]
+    tf_serving_models_path = data["tf_serving_models_path"]
+    available_gpus = data["available_gpus"]
+    actuator_image = data["actuator_image"]
+    k8s_service_type = data["k8s_service_type"]
+
+    # generate TF serving config file
+    logging.info("generating tf serving config...")
+    tf_serving_config_file_content = Configurator.tf_config_generator(models, tf_serving_models_path)
+    tf_serving_config_file_name = tf_serving_models_path + "tf_serving_models.config"
+
+    logging.info("writing tf serving config to file...")
+    with open(tf_serving_config_file_name, 'w') as file:
+        res = file.write(tf_serving_config_file_content)
+    check_write(res)
+
+    # generate K8s deployment and service
+    logging.info("generating k8s deployment and service...")
+    k8s_containers, k8s_deployment, k8s_service = Configurator.k8s_config_generator(workers,
+                                                                                    models,
+                                                                                    available_gpus,
+                                                                                    actuator_image,
+                                                                                    ACTUATOR_PORT,
+                                                                                    k8s_service_type,
+                                                                                    tf_serving_models_path,
+                                                                                    tf_serving_config_file_name)
+
+    k8s_deployment_yml = yaml.dump(clean_empty(k8s_deployment.to_dict()))
+    k8s_service_yml = yaml.dump(clean_empty(k8s_service.to_dict()))
+    logging.info(k8s_deployment_yml)
+    logging.info(k8s_service_yml)
+    if "k8s_output_config_path" in data:
+        k8s_deployment_file_name = data["k8s_output_config_path"] + "k8s_deployment.yml"
+        k8s_service_file_name = data["k8s_output_config_path"] + "k8s_service.yml"
+        logging.info("writing k8s deployment to file...")
+        with open(k8s_deployment_file_name, 'w') as file:
+            res = file.write(k8s_deployment_yml)
+            check_write(res)
+        logging.info("writing k8s service to file...")
+        with open(k8s_service_file_name, 'w') as file:
+            res = file.write(k8s_service_yml)
+            check_write(res)
+
+    # apply k8s deployment
+    config.load_kube_config()
+    apps_api = client.AppsV1Api()
+    resp = apps_api.create_namespaced_deployment(namespace="default", body=k8s_deployment)
+    if resp and resp.metadata and resp.metadata.name:
+        logging.info("Service created. status='%s'" % resp.metadata.name)
+    else:
+        return {"result": "error during the creation of the K8s deployment"}, 400
+
+    # apply k8s service
+    apps_api = client.CoreV1Api()
+    resp = apps_api.create_namespaced_service(namespace="default", body=k8s_service)
+    if resp and resp.metadata and resp.metadata.name:
+        logging.info("Service created. status='%s'" % resp.metadata.name)
+    else:
+        return {"result": "error during the creation of the K8s service"}, 400
+
+    # list node IPs
+    # wait until the service is applied in k8s
+    sleep_time = 1
+    waited_time = 0
+    timeout = 100
+    service_ok = False
+    while not service_ok:
+        logging.info("Waiting %ds, total waited %ds/%ds for K8s service..." % (sleep_time, waited_time, timeout))
+        time.sleep(sleep_time)
+        waited_time += sleep_time
+        resp = apps_api.read_namespaced_endpoints(namespace="default", name="nodemanager-svc")
+        if resp and resp.subsets:
+            service_ok = True
+        sleep_time *= 2
+        if waited_time > timeout:
+            return {"result": "error timeout waiting for K8s service"}, 400
+
+    k8s_nodes = []
+    for i, subset in enumerate(resp.subsets):
+        if not resp.subsets[i].addresses:
+            return {"result": "error K8s service, node IPs not found, api returned: " + str(resp)}, 400
+        for j, address in enumerate(resp.subsets[i].addresses):
+            k8s_nodes.append(address.ip)
+    logging.info("Available node (IPs), node ips=" + str(k8s_nodes))
+
+    # populate the container list
+    for node in k8s_nodes:
+        for k8s_container in k8s_containers:
+            container = k8s_container
+            container.set_node(node)
+            containers.append(container)
+
+    logging.info("+ %d CPU containers, not linked yet",
+                 len(list(filter(lambda m: m.device == Device.CPU, containers))))
+    logging.info("+ %d GPU containers, not linked yet",
+                 len(list(filter(lambda m: m.device == Device.GPU, containers))))
+    logging.info([c.to_json() for c in containers])
+
+    # link containers (get containers IDs)
+    containers_linking(ACTUATOR_PORT)
+
+    # set initial CPU quota
+    # quota_reset(ACTUATOR_PORT, INIT_QUOTA)
+
+    status = "active"
+    logging.info(status)
+
+    return {"result": "ok"}, 200
 
 
 def containers_linking(actuator_port):
@@ -162,7 +277,7 @@ def containers_linking(actuator_port):
 
         try:
             response = requests.get(
-                "http://" + node + ":" + actuator_port + CONTAINERS_LIST_ENDPOINT)
+                "http://" + node + ":" + str(actuator_port) + CONTAINERS_LIST_ENDPOINT)
             logging.info("Response: %d %s",
                          response.status_code, response.text)
 
@@ -220,33 +335,13 @@ def quota_reset(actuator_port, quota):
 if __name__ == "__main__":
     models = []
     containers = []
-    nodes = []
 
     # init log
     log_format = "%(asctime)s:%(levelname)s:%(name)s:" \
                  "%(filename)s:%(lineno)d:%(message)s"
     logging.basicConfig(level='DEBUG', format=log_format)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config_file', type=str, default=CONFIG_FILE)
-    parser.add_argument('--actuator_port', type=str, default=ACTUATOR_PORT)
-    parser.add_argument('--quota', type=float, required=True)
-    args = parser.parse_args()
-
-    # init models and containers
-    status = "reading config file"
-    logging.info(status)
-    read_config_file(args.config_file)
-
-    status = "linking containers with id"
-    logging.info(status)
-    # containers_linking(args.actuator_port) TODO: uncomment
-
-    status = "reset quota"
-    logging.info(status)
-    # quota_reset(args.actuator_port, float(args.quota)) TODO: uncomment
-
     # start
-    status = "running"
+    status = "inactive"
     logging.info(status)
     app.run(host='0.0.0.0', port=5001)

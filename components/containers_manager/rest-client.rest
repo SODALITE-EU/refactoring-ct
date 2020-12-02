@@ -57,3 +57,36 @@ Content-Type: application/json
   "model": "model_3",
   "version": 1
 }
+
+### Post configuration
+POST http://{{host}}:{{port}}/configure
+Content-Type: application/json
+
+{
+   "models": [
+      {
+         "name": "skyline_extraction",
+         "version": 1,
+         "sla": 0.3,
+         "alpha": 0.5,
+         "profiled_rt": 0.15
+      },
+      {
+         "name": "half_plus_two",
+         "version": 1,
+         "sla": 0.4,
+         "alpha": 0.5,
+         "profiled_rt": 0.15
+      }
+   ],
+  "workers": 1,
+  "available_gpus": 2,
+  "quota": 2,
+  "actuator_image": "nodemanager-actuator:local",
+  "actuator_port": 5000,
+  "k8s_service_type": "NodePort",
+  "k8s_output_config_path": "",
+  "tf_serving_models_path": "/home/nik/models/"
+}
+
+###

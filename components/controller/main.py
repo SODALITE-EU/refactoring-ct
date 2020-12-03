@@ -48,16 +48,8 @@ def control():
 
 @app.route('/configuration', methods=['POST'])
 def configure():
-    global status
-    global models_endpoint
-    global containers_endpoint
-    global requests_endpoint
-    global min_cores
-    global max_cores
-    global control_period
-    global control_type
-    global actuator_port
-    global dry_run
+    global status, models_endpoint, containers_endpoint, min_cores, max_cores, control_period, control_type,\
+        actuator_port, sched, controller, dry_run
 
     logging.info("configuration started...")
 
@@ -91,31 +83,10 @@ def configure():
     return {"result": "ok"}, 200
 
 
-@app.route('/stop', methods=['POST'])
-def stop_controller():
-    global sched
-    global status
-
-    sched.remove_job('nodemanager-controller')
-
-    status = "configured"
-    logging.info(status)
-
-    return {"result": "ok"}, 200
-
-
 @app.route('/start', methods=['POST'])
 def start_controller():
-    global status
-    global models_endpoint
-    global containers_endpoint
-    global min_cores
-    global max_cores
-    global control_period
-    global control_type
-    global actuator_port
-    global sched
-    global controller
+    global status, models_endpoint, containers_endpoint, min_cores, max_cores, control_period, control_type,\
+        actuator_port, sched, controller
 
     if control_type == "CT":
         controller = ControllerManager(models_endpoint,
@@ -139,12 +110,24 @@ def start_controller():
         controller.init()
 
     sched.add_job(control, 'interval', seconds=control_period, id='nodemanager-controller')
-    sched.start()
 
     status = "active"
     logging.info(status)
 
     return {"result": "ok"}, 200
+
+
+@app.route('/stop', methods=['POST'])
+def stop_controller():
+    global sched, status
+
+    if status == "active":
+        sched.remove_job('nodemanager-controller')
+
+        status = "configured"
+        logging.info(status)
+
+        return {"result": "ok"}, 200
 
 
 if __name__ == "__main__":
@@ -155,6 +138,7 @@ if __name__ == "__main__":
                         datefmt="%H:%M:%S")
 
     sched = BackgroundScheduler()
+    sched.start()
 
     status = "inactive"
     logging.info(status)

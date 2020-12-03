@@ -13,6 +13,13 @@ from models.container import Container
 app = Flask(__name__)
 CORS(app)
 
+status = None
+reqs = {}
+models_endpoint = None
+containers_endpoint = None
+models = []
+containers = []
+
 
 @app.route('/', methods=['GET'])
 def get_status():
@@ -156,29 +163,53 @@ def get_metrics_by_model_interval(model, version):
     return jsonify(intervals=metrics)
 """
 
+
+@app.route('/configuration', methods=['POST'])
+def configure():
+    global status, models_endpoint, containers_endpoint
+
+    logging.info("configuration started...")
+
+    # read from configuration
+    data = request.get_json()
+    containers_manager = data["containers_manager"]
+
+    models_endpoint = containers_manager + "/models"
+    logging.info("Getting models from: %s", models_endpoint)
+    containers_endpoint = containers_manager + "/containers"
+    logging.info("Getting containers from: %s", containers_endpoint)
+
+    status = "configured"
+    logging.info(status)
+
+    return {"result": "ok"}, 200
+
+
+@app.route('/start', methods=['POST'])
+def start_requests_store():
+    global status, models_endpoint, containers_endpoint, models, containers
+
+    # get models information
+    models = [Model(json_data=json_model) for json_model in get_data(models_endpoint)]
+    logging.info("Models: %s", [model.to_json() for model in models])
+
+    # get containers information
+    containers = [Container(json_data=json_container) for json_container in get_data(containers_endpoint)]
+    logging.info("Containers: %s", [container.to_json() for container in containers])
+
+    status = "active"
+    logging.info(status)
+
+    return {"result": "ok"}, 200
+
+
 if __name__ == "__main__":
-    reqs = {}
-    status = "running"
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--containers_manager', type=str, required=True)
-    args = parser.parse_args()
-
     # init log
     log_format = "%(asctime)s:%(levelname)s:%(name)s:" \
                  "%(filename)s:%(lineno)d:%(message)s"
     logging.basicConfig(level='DEBUG', format=log_format)
 
-    # get models information
-    models_endpoint = args.containers_manager + "/models"
-    logging.info("Getting models from: %s", models_endpoint)
-    models = [Model(json_data=json_model) for json_model in get_data(models_endpoint)]
-    logging.info("Models: %s", [model.to_json() for model in models])
-
-    # get containers information
-    containers_endpoint = args.containers_manager + "/containers"
-    logging.info("Getting containers from: %s", containers_endpoint)
-    containers = [Container(json_data=json_container) for json_container in get_data(containers_endpoint)]
-    logging.info("Containers: %s", [container.to_json() for container in containers])
+    status = "inactive"
+    logging.info(status)
 
     app.run(host='0.0.0.0', port=5002)

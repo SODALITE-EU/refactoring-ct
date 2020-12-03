@@ -34,7 +34,6 @@ Accept: application/json
 POST http://{{host}}:{{port}}/requests
 Content-Type: application/json
 
-
 {
   "id": "id123",
   "model": "half_plus_two",
@@ -56,5 +55,13 @@ Content-Type: application/json
   ]
 }
 
+### Post configuration
+POST http://{{host}}:{{port}}/configuration
+Content-Type: application/json
 
-###
+{
+  "containers_manager": "localhost:5001"
+}
+
+### Start the component
+POST http://{{host}}:{{port}}/start

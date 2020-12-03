@@ -2,6 +2,7 @@ host = "localhost";
 host_containers = "http://" + host + ":5001";
 host_requests = "http://" + host + ":5002";
 host_controller = "http://" + host + ":5003";
+host_dispatcher = "http://" + host + ":8000";
 
 function deviceFormatter(data) {
   return data === 0 ? "CPU" : "GPU";
@@ -39,6 +40,58 @@ function resetRequestsStore() {
     success: function (result) {},
   });
 }
+
+// Status
+function refreshStatus(){
+  $.get(host_containers + "/", function (data) {
+    $("#containers-manager-status").text(data["status"])
+  }).fail(function() {
+    $("#containers-manager-status").val("?")
+  });
+
+  $.get(host_requests + "/", function (data) {
+    $("#requests-store-status").text(data["status"])
+  }).fail(function() {
+    $("#requests-store-status").val("?")
+  });
+
+  $.get(host_controller + "/", function (data) {
+    $("#controller-status").text(data["status"])
+  }).fail(function() {
+    $("#controller-status").val("?")
+  });
+
+  $.get(host_dispatcher + "/", function (data) {
+    $("#dispatcher-status").text(data["status"])
+  }).fail(function() {
+    $("#dispatcher-status").val("?")
+  });
+}
+refreshStatus()
+// END Status
+
+// Configuration
+function refreshConfiguration(){
+  $.get(host_containers + "/configuration/tfs", function (data) {
+    $("#tfs-config").val(data.configuration)
+  }).fail(function() {
+    $("#tfs-config").val("?")
+  });
+
+  $.get(host_containers + "/configuration/k8s/deployment", function (data) {
+    $("#k8s-deployment").val(data.configuration)
+  }).fail(function() {
+    $("#k8s-deployment").val("?")
+  });
+
+  $.get(host_containers + "/configuration/k8s/service", function (data) {
+    $("#k8s-service").val(data.configuration)
+  }).fail(function() {
+    $("#k8s-service").val("?")
+  });
+}
+refreshConfiguration()
+// END Configuration
 
 $("#table-controller-log").bootstrapTable({
   autoRefresh: true,

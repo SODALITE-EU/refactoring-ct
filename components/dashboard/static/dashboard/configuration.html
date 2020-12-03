@@ -25,31 +25,37 @@
 <div class="container">
     <div class="row">
         <div class="col-12">
-            <div class="h3 mt-4">Models</div>
-            <table id="table-models"></table>
+            <div class="h3 mt-4">Status <button type="button" class="btn btn-primary" onclick="refreshStatus()">Refresh</button></div>
+            <div class="row">
+                <div class="col-3">
+                    Containers Manager <p id="containers-manager-status">?</p>
+                </div>
+                <div class="col-3">
+                    Request Store <p id="requests-store-status">?</p>
+                </div>
+                <div class="col-3">
+                    Controller <p id="controller-status">?</p>
+                </div>
+                <div class="col-3">
+                    Dispatcher <p id="dispatcher-status">?</p>
+                </div>
+            </div>
 
-            <div class="h3 mt-4">Containers</div>
-            <table id="table-containers"></table>
-
-            <div class="h3 mt-4">Metrics</div>
-            <h6>Models</h6>
-            <table id="table-metrics-model" data-auto-refresh="true" data-auto-refresh-interval="1"></table>
-            <hr/>
-            <h6>Containers</h6>
-            <table id="table-metrics-container" data-auto-refresh="true" data-auto-refresh-interval="1"></table>
-
-            <div class="h3 mt-4">Requests</div>
-            <button type="button" onclick="resetRequestsStore()" class="btn btn-danger">Reset</button>
-            <table id="table-requests"></table>
-
-            <div class="h3 mt-4">Controller</div>
-            <table id="table-controller-log"></table>
-
-            <div class="h3 mt-4">Charts</div>
-            <canvas id="chart-rt" height="35"></canvas>
-            <canvas id="chart-ql" height="35"></canvas>
-            <canvas id="chart-on-gpu" height="35"></canvas>
-            <canvas id="chart-quota" height="35"></canvas>
+            <div class="h3 mt-4">Configuration <button type="button" class="btn btn-primary" onclick="refreshConfiguration()">Refresh</button></div>
+            <div class="row">
+                <div class="col-4">
+                    <h5>TF Serving</h5>
+                    <textarea class="w-100" id="tfs-config" style="height: 300px"></textarea>
+                </div>
+                <div class="col-4">
+                    <h5>K8s Deployment</h5>
+                    <textarea class="w-100" id="k8s-deployment" style="height: 300px"></textarea>
+                </div>
+                <div class="col-4">
+                    <h5>K8s Service</h5>
+                    <textarea class="w-100" id="k8s-service" style="height: 300px"></textarea>
+                </div>
+            </div>
         </div>
     </div>
 </div>

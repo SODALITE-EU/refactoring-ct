@@ -23,6 +23,12 @@ CONTAINERS_LIST_ENDPOINT = "/containers"
 INIT_QUOTA = None
 ACTUATOR_PORT = None
 
+# variables set after configuration
+k8s_deployment = None
+k8s_service = None
+tfs_config = None
+models = []
+containers = []
 
 @app.route('/', methods=['GET'])
 def get_status():
@@ -30,7 +36,7 @@ def get_status():
 
 
 @app.route('/containers', methods=['GET', 'PATCH'])
-def containers():
+def get_update_containers():
     if request.method == 'GET':
         return jsonify([container.to_json() for container in containers])
     elif request.method == 'PATCH':
@@ -126,20 +132,47 @@ def clean_empty(d):
     return {k: v for k, v in ((k, clean_empty(v)) for k, v in d.items()) if v}
 
 
-@app.route('/configure', methods=['POST'])
+@app.route('/configuration/tfs', methods=['GET'])
+def get_tfs_configuration():
+    if tfs_config:
+        return {"configuration": tfs_config}, 200
+    else:
+        return {"error": "tfs configuration not defined"}, 400
+
+
+@app.route('/configuration/k8s/deployment', methods=['GET'])
+def get_k8s_deployment():
+    if k8s_deployment:
+        return {"configuration": yaml.dump(clean_empty(k8s_deployment.to_dict()))}, 200
+    else:
+        return {"error": "k8s deployment not defined"}, 400
+
+
+@app.route('/configuration/k8s/service', methods=['GET'])
+def get_k8s_service():
+    if k8s_service is not None:
+        return {"configuration":yaml.dump(clean_empty(k8s_service.to_dict()))}, 200
+    else:
+        return {"error": "k8s service not defined"}, 400
+
+
+@app.route('/configuration', methods=['POST'])
 def configure():
     global models
     global containers
     global status
     global INIT_QUOTA
     global ACTUATOR_PORT
+    global k8s_deployment
+    global k8s_service
+    global tfs_config
     models = []
 
     logging.info("configuration started...")
 
     # read from configuration
     data = request.get_json()
-    if not all(d in data for d in ["models", "quota", "actuator_port", "workers", "tf_serving_models_path",
+    if not all(d in data for d in ["models", "quota", "actuator_port", "workers", "tfs_models_path",
                                    "available_gpus", "actuator_image", "k8s_service_type"]):
         return {"error": "config data missing"}, 404
     for model in data["models"]:
@@ -154,20 +187,16 @@ def configure():
     INIT_QUOTA = data["quota"]
     ACTUATOR_PORT = data["actuator_port"]
     workers = data["workers"]
-    tf_serving_models_path = data["tf_serving_models_path"]
+    tfs_models_path = data["tfs_models_path"]
     available_gpus = data["available_gpus"]
     actuator_image = data["actuator_image"]
     k8s_service_type = data["k8s_service_type"]
 
     # generate TF serving config file
     logging.info("generating tf serving config...")
-    tf_serving_config_file_content = Configurator.tf_config_generator(models, tf_serving_models_path)
-    tf_serving_config_file_name = tf_serving_models_path + "tf_serving_models.config"
-
-    logging.info("writing tf serving config to file...")
-    with open(tf_serving_config_file_name, 'w') as file:
-        res = file.write(tf_serving_config_file_content)
-    check_write(res)
+    tfs_config = Configurator.tf_config_generator(models, tfs_models_path)
+    tfs_config_file_name = tfs_models_path + "tf_serving_models.config"
+    logging.info("tf serving config file will be saved to " + tfs_config_file_name)
 
     # generate K8s deployment and service
     logging.info("generating k8s deployment and service...")
@@ -177,24 +206,14 @@ def configure():
                                                                                     actuator_image,
                                                                                     ACTUATOR_PORT,
                                                                                     k8s_service_type,
-                                                                                    tf_serving_models_path,
-                                                                                    tf_serving_config_file_name)
+                                                                                    tfs_config,
+                                                                                    tfs_models_path,
+                                                                                    tfs_config_file_name)
 
-    k8s_deployment_yml = yaml.dump(clean_empty(k8s_deployment.to_dict()))
-    k8s_service_yml = yaml.dump(clean_empty(k8s_service.to_dict()))
+    k8s_deployment_yml, _ = get_k8s_deployment()
+    k8s_service_yml, _ = get_k8s_service()
     logging.info(k8s_deployment_yml)
     logging.info(k8s_service_yml)
-    if "k8s_output_config_path" in data:
-        k8s_deployment_file_name = data["k8s_output_config_path"] + "k8s_deployment.yml"
-        k8s_service_file_name = data["k8s_output_config_path"] + "k8s_service.yml"
-        logging.info("writing k8s deployment to file...")
-        with open(k8s_deployment_file_name, 'w') as file:
-            res = file.write(k8s_deployment_yml)
-            check_write(res)
-        logging.info("writing k8s service to file...")
-        with open(k8s_service_file_name, 'w') as file:
-            res = file.write(k8s_service_yml)
-            check_write(res)
 
     # apply k8s deployment
     config.load_kube_config()
@@ -252,7 +271,7 @@ def configure():
     logging.info([c.to_json() for c in containers])
 
     # link containers (get containers IDs)
-    containers_linking(ACTUATOR_PORT)
+    #containers_linking(ACTUATOR_PORT)
 
     # set initial CPU quota
     # quota_reset(ACTUATOR_PORT, INIT_QUOTA)
@@ -333,9 +352,6 @@ def quota_reset(actuator_port, quota):
 
 
 if __name__ == "__main__":
-    models = []
-    containers = []
-
     # init log
     log_format = "%(asctime)s:%(levelname)s:%(name)s:" \
                  "%(filename)s:%(lineno)d:%(message)s"

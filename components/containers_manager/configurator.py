@@ -18,11 +18,11 @@ class Configurator:
     # generate a K8s deployment and service
     @staticmethod
     def k8s_config_generator(workers, models, available_gpus, actuator_image, actuator_port, k8s_service_type,
-                             tf_serving_models_path, tf_serving_config_file_name):
+                             tfs_config, tfs_models_path, tfs_config_file_name):
         # generate deployment
         containers, deployment = Configurator.k8s_deployment_generator(models, actuator_image, available_gpus,
-                                                                       tf_serving_config_file_name,
-                                                                       tf_serving_models_path, workers, actuator_port)
+                                                                       tfs_config, tfs_config_file_name,
+                                                                       tfs_models_path, workers, actuator_port)
         # generate service
         service = Configurator.k8s_service_generator(models, available_gpus, k8s_service_type, actuator_port)
 
@@ -30,8 +30,8 @@ class Configurator:
 
     # generate a K8s deployment
     @staticmethod
-    def k8s_deployment_generator(models, actuator_image, available_gpus, tf_serving_config_file_name,
-                                 tf_serving_models_path, workers, actuator_port):
+    def k8s_deployment_generator(models, actuator_image, available_gpus, tfs_config, tfs_config_file_name,
+                                 tfs_models_path, workers, actuator_port):
 
         # add containers
         containers = []
@@ -50,11 +50,11 @@ class Configurator:
             container_name = "nodemanager-rest-cpu-" + str(i + 1)
             k8s_container = client.V1Container(name=container_name,
                                                image="tensorflow/serving:latest",
-                                               args=["--model_config_file=" + tf_serving_config_file_name,
+                                               args=["--model_config_file=" + tfs_config_file_name,
                                                      "--rest_api_port=" + str(base_port)],
                                                ports=[client.V1ContainerPort(container_port=base_port)],
                                                volume_mounts=[client.V1VolumeMount(name="shared-models",
-                                                                                   mount_path=tf_serving_models_path)])
+                                                                                   mount_path=tfs_models_path)])
             k8s_containers.append(k8s_container)
             containers.append(Container(model=model.name,
                                         version=model.version,
@@ -71,11 +71,11 @@ class Configurator:
             container_name = "nodemanager-rest-gpu-" + str(gpu + 1)
             k8s_container = client.V1Container(name=container_name,
                                                image="tensorflow/serving:latest-gpu",
-                                               args=["--model_config_file=" + tf_serving_config_file_name,
+                                               args=["--model_config_file=" + tfs_config_file_name,
                                                      "--rest_api_port=" + str(base_port)],
                                                ports=[client.V1ContainerPort(container_port=base_port)],
                                                volume_mounts=[client.V1VolumeMount(name="shared-models",
-                                                                                   mount_path=tf_serving_models_path)],
+                                                                                   mount_path=tfs_models_path)],
                                                env=[client.V1EnvVar(name="NVIDIA_VISIBLE_DEVICES",
                                                                     value=str(gpu + 1))])
             k8s_containers.append(k8s_container)
@@ -91,17 +91,24 @@ class Configurator:
 
         # add volumes
         volumes = [client.V1Volume(name="shared-models",
-                                   host_path=client.V1HostPathVolumeSource(path=tf_serving_models_path)),
+                                   host_path=client.V1HostPathVolumeSource(path=tfs_models_path)),
                    client.V1Volume(name="docker-sock",
                                    host_path=client.V1HostPathVolumeSource(path="/var/run"))]
 
         # set pod affinity
         affinity = client.V1Affinity(pod_anti_affinity=client.V1PodAffinity(required_during_scheduling_ignored_during_execution=[client.V1PodAffinityTerm(topology_key="kubernetes.io/hostname")]))
 
+        # init containers
+        init_containers = [client.V1Container(name="download-tfs-config",
+                                              image="alpine",
+                                              command=["/bin/sh"],
+                                              args=["mkdir", "-p", tfs_models_path, "&&", "cat", "<<", "'EOF'", ">>", tfs_config_file_name, tfs_config, "EOF"])]
+
         # add pod spec
         pod_spec = client.V1PodSpec(containers=k8s_containers,
                                     volumes=volumes,
-                                    affinity=affinity)
+                                    affinity=affinity,
+                                    init_containers=init_containers)
         # add pod template spec
         pod_template_spec = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"run": "nodemanager"}),
                                                      spec=pod_spec)

@@ -58,8 +58,9 @@ Content-Type: application/json
   "version": 1
 }
 
+
 ### Post configuration
-POST http://{{host}}:{{port}}/configure
+POST http://{{host}}:{{port}}/configuration
 Content-Type: application/json
 
 {
@@ -85,8 +86,14 @@ Content-Type: application/json
   "actuator_image": "nodemanager-actuator:local",
   "actuator_port": 5000,
   "k8s_service_type": "NodePort",
-  "k8s_output_config_path": "",
-  "tf_serving_models_path": "/home/nik/models/"
+  "tfs_models_path": "/home/models/"
 }
 
-###
+### Get TF serving config file
+GET http://{{host}}:{{port}}/configuration/tfs
+
+### Get K8s deployment
+GET http://{{host}}:{{port}}/configuration/k8s/deployment
+
+### Get K8s service
+GET http://{{host}}:{{port}}/configuration/k8s/deployment

@@ -63,5 +63,8 @@ Content-Type: application/json
   "containers_manager": "localhost:5001"
 }
 
+### Get configuration
+GET http://{{host}}:{{port}}/configuration
+
 ### Start the component
 POST http://{{host}}:{{port}}/start

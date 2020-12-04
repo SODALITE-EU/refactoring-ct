@@ -1,5 +1,3 @@
-import time
-
 from flask import Flask, jsonify
 from flask import request
 from flask_cors import CORS
@@ -9,14 +7,14 @@ import requests
 from models.req import Req
 from models.model import Model
 from models.container import Container
+from configuration import Configuration
 
 app = Flask(__name__)
 CORS(app)
 
 status = None
 reqs = {}
-models_endpoint = None
-containers_endpoint = None
+config = None
 models = []
 containers = []
 
@@ -164,20 +162,26 @@ def get_metrics_by_model_interval(model, version):
 """
 
 
+@app.route('/configuration', methods=['GET'])
+def get_configuration():
+    logging.info("get configuration")
+    return {"configuration": config.__dict__}, 200
+
+
 @app.route('/configuration', methods=['POST'])
 def configure():
-    global status, models_endpoint, containers_endpoint
+    global status, config
 
     logging.info("configuration started...")
 
     # read from configuration
     data = request.get_json()
+
+    config = Configuration(containers_manager=data["containers_manager"])
     containers_manager = data["containers_manager"]
 
-    models_endpoint = containers_manager + "/models"
-    logging.info("Getting models from: %s", models_endpoint)
-    containers_endpoint = containers_manager + "/containers"
-    logging.info("Getting containers from: %s", containers_endpoint)
+    logging.info("Getting models from: %s", config.models_endpoint)
+    logging.info("Getting containers from: %s", config.containers_endpoint)
 
     status = "configured"
     logging.info(status)
@@ -187,14 +191,14 @@ def configure():
 
 @app.route('/start', methods=['POST'])
 def start_requests_store():
-    global status, models_endpoint, containers_endpoint, models, containers
+    global status, config, models, containers
 
     # get models information
-    models = [Model(json_data=json_model) for json_model in get_data(models_endpoint)]
+    models = [Model(json_data=json_model) for json_model in get_data(config.models_endpoint)]
     logging.info("Models: %s", [model.to_json() for model in models])
 
     # get containers information
-    containers = [Container(json_data=json_container) for json_container in get_data(containers_endpoint)]
+    containers = [Container(json_data=json_container) for json_container in get_data(config.containers_endpoint)]
     logging.info("Containers: %s", [container.to_json() for container in containers])
 
     status = "active"

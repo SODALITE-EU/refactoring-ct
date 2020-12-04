@@ -82,12 +82,15 @@ Content-Type: application/json
    ],
   "workers": 1,
   "available_gpus": 2,
-  "quota": 2,
+  "init_quota": 2,
   "actuator_image": "nodemanager-actuator:local",
   "actuator_port": 5000,
   "k8s_service_type": "NodePort",
   "tfs_models_path": "/home/models/"
 }
+
+### Get configuration
+GET http://{{host}}:{{port}}/configuration
 
 ### Get TF serving config file
 GET http://{{host}}:{{port}}/configuration/tfs

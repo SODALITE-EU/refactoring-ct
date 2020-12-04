@@ -12,23 +12,18 @@ from models.device import Device
 from models.container import Container
 from kubernetes import client, config
 from configurator import Configurator
+from configuration import Configuration
 
 app = Flask(__name__)
 CORS(app)
 
-CONFIG_FILE = "config/config.json"
-CONTAINERS_LIST_ENDPOINT = "/containers"
-
-# constants set after configuration
-INIT_QUOTA = None
-ACTUATOR_PORT = None
-
-# variables set after configuration
+config = None
 k8s_deployment = None
 k8s_service = None
 tfs_config = None
 models = []
 containers = []
+
 
 @app.route('/', methods=['GET'])
 def get_status():
@@ -132,6 +127,12 @@ def clean_empty(d):
     return {k: v for k, v in ((k, clean_empty(v)) for k, v in d.items()) if v}
 
 
+@app.route('/configuration', methods=['GET'])
+def get_configuration():
+    logging.info("get configuration")
+    return {"configuration": config.__dict__}, 200
+
+
 @app.route('/configuration/tfs', methods=['GET'])
 def get_tfs_configuration():
     if tfs_config:
@@ -150,29 +151,22 @@ def get_k8s_deployment():
 
 @app.route('/configuration/k8s/service', methods=['GET'])
 def get_k8s_service():
-    if k8s_service is not None:
-        return {"configuration":yaml.dump(clean_empty(k8s_service.to_dict()))}, 200
+    if k8s_service:
+        return {"configuration": yaml.dump(clean_empty(k8s_service.to_dict()))}, 200
     else:
         return {"error": "k8s service not defined"}, 400
 
 
 @app.route('/configuration', methods=['POST'])
 def configure():
-    global models
-    global containers
-    global status
-    global INIT_QUOTA
-    global ACTUATOR_PORT
-    global k8s_deployment
-    global k8s_service
-    global tfs_config
+    global models, containers, status, config, k8s_deployment, k8s_service, tfs_config
     models = []
 
     logging.info("configuration started...")
 
     # read from configuration
     data = request.get_json()
-    if not all(d in data for d in ["models", "quota", "actuator_port", "workers", "tfs_models_path",
+    if not all(d in data for d in ["models", "init_quota", "actuator_port", "workers", "tfs_models_path",
                                    "available_gpus", "actuator_image", "k8s_service_type"]):
         return {"error": "config data missing"}, 404
     for model in data["models"]:
@@ -183,31 +177,36 @@ def configure():
             models.append(
                 Model(model["name"], model["version"], model["sla"], model["alpha"]))
 
+    if "k8s_service_type" in data:
+        k8s_service_type = data["k8s_service_type"]
+    else:
+        k8s_service_type = "ClusterIP"
+
     # read other params
-    INIT_QUOTA = data["quota"]
-    ACTUATOR_PORT = data["actuator_port"]
-    workers = data["workers"]
-    tfs_models_path = data["tfs_models_path"]
-    available_gpus = data["available_gpus"]
-    actuator_image = data["actuator_image"]
-    k8s_service_type = data["k8s_service_type"]
+    config = Configuration(init_quota=data["init_quota"],
+                           actuator_port=data["actuator_port"],
+                           actuator_image=data["actuator_image"],
+                           workers=data["workers"],
+                           available_gpus=data["available_gpus"],
+                           tfs_models_path = data["tfs_models_path"],
+                           k8s_service_type=data["k8s_service_type"])
 
     # generate TF serving config file
     logging.info("generating tf serving config...")
-    tfs_config = Configurator.tf_config_generator(models, tfs_models_path)
-    tfs_config_file_name = tfs_models_path + "tf_serving_models.config"
+    tfs_config = Configurator.tf_config_generator(models, config.tfs_models_path)
+    tfs_config_file_name = config.tfs_models_path + "tf_serving_models.config"
     logging.info("tf serving config file will be saved to " + tfs_config_file_name)
 
     # generate K8s deployment and service
     logging.info("generating k8s deployment and service...")
-    k8s_containers, k8s_deployment, k8s_service = Configurator.k8s_config_generator(workers,
+    k8s_containers, k8s_deployment, k8s_service = Configurator.k8s_config_generator(config.workers,
                                                                                     models,
-                                                                                    available_gpus,
-                                                                                    actuator_image,
-                                                                                    ACTUATOR_PORT,
+                                                                                    config.available_gpus,
+                                                                                    config.actuator_image,
+                                                                                    config.actuator_port,
                                                                                     k8s_service_type,
                                                                                     tfs_config,
-                                                                                    tfs_models_path,
+                                                                                    config.tfs_models_path,
                                                                                     tfs_config_file_name)
 
     k8s_deployment_yml, _ = get_k8s_deployment()
@@ -222,6 +221,8 @@ def configure():
     if resp and resp.metadata and resp.metadata.name:
         logging.info("Service created. status='%s'" % resp.metadata.name)
     else:
+        status = "error K8s deployment"
+        logging.info(status)
         return {"result": "error during the creation of the K8s deployment"}, 400
 
     # apply k8s service
@@ -230,6 +231,8 @@ def configure():
     if resp and resp.metadata and resp.metadata.name:
         logging.info("Service created. status='%s'" % resp.metadata.name)
     else:
+        status = "error K8s service"
+        logging.info(status)
         return {"result": "error during the creation of the K8s service"}, 400
 
     # list node IPs
@@ -247,12 +250,20 @@ def configure():
             service_ok = True
         sleep_time *= 2
         if waited_time > timeout:
+            status = "error K8s service timeout"
+            logging.info(status)
             return {"result": "error timeout waiting for K8s service"}, 400
 
     k8s_nodes = []
     for i, subset in enumerate(resp.subsets):
         if not resp.subsets[i].addresses:
+            status = "error K8s service IPs not found"
+            logging.info(status)
             return {"result": "error K8s service, node IPs not found, api returned: " + str(resp)}, 400
+        if len(resp.subsets[i].addresses) == 0:
+            status = "error K8s service IPs empty"
+            logging.info(status)
+            return {"result": "error K8s service, node IPs empty, api returned: " + str(resp)}, 400
         for j, address in enumerate(resp.subsets[i].addresses):
             k8s_nodes.append(address.ip)
     logging.info("Available node (IPs), node ips=" + str(k8s_nodes))
@@ -264,17 +275,15 @@ def configure():
             container.set_node(node)
             containers.append(container)
 
-    logging.info("+ %d CPU containers, not linked yet",
-                 len(list(filter(lambda m: m.device == Device.CPU, containers))))
-    logging.info("+ %d GPU containers, not linked yet",
-                 len(list(filter(lambda m: m.device == Device.GPU, containers))))
+    logging.info("+ %d CPU containers, not linked yet", len(list(filter(lambda m: m.device == Device.CPU, containers))))
+    logging.info("+ %d GPU containers, not linked yet", len(list(filter(lambda m: m.device == Device.GPU, containers))))
     logging.info([c.to_json() for c in containers])
 
     # link containers (get containers IDs)
-    #containers_linking(ACTUATOR_PORT)
+    containers_linking()
 
     # set initial CPU quota
-    # quota_reset(ACTUATOR_PORT, INIT_QUOTA)
+    quota_reset()
 
     status = "active"
     logging.info(status)
@@ -282,7 +291,7 @@ def configure():
     return {"result": "ok"}, 200
 
 
-def containers_linking(actuator_port):
+def containers_linking():
     """
     Link containers with ids
     """
@@ -295,16 +304,13 @@ def containers_linking(actuator_port):
         containers_on_node = list(filter(lambda c: c.node == node, containers))
 
         try:
-            response = requests.get(
-                "http://" + node + ":" + str(actuator_port) + CONTAINERS_LIST_ENDPOINT)
-            logging.info("Response: %d %s",
-                         response.status_code, response.text)
+            response = requests.get("http://" + node + ":" + str(config.actuator_port) + config.container_list_endpoint)
+            logging.info("Response: %d %s", response.status_code, response.text)
 
             if response.ok:
                 # get the containers from the response
                 running_containers = response.json()
-                logging.info("Found %d containers on node %s",
-                             len(running_containers), node)
+                logging.info("Found %d containers on node %s", len(running_containers), node)
 
                 # set the containers id
                 linked_containers = 0
@@ -312,22 +318,19 @@ def containers_linking(actuator_port):
                     for running_container in running_containers:
                         if container.container == running_container["container_name"]:
                             container.container_id = running_container["id"]
-                            logging.info("+ link: %s <-> %s",
-                                         container.model, container.container_id)
+                            logging.info("+ link: %s <-> %s", container.model, container.container_id)
                             linked_containers = linked_containers + 1
                             break
                 logging.info("Linked %d containers on node %s",
                              linked_containers, node)
             else:
                 # disable model if actuator_controller response status is not 200
-                logging.info(
-                    "No containers found on node %s, (response not ok)", node)
+                logging.info("No containers found on node %s, (response not ok)", node)
                 for container in containers_on_node:
                     container.active = False
 
         except Exception as e:
-            logging.warning(
-                "Disabling containers for node: %s because %s", node, e)
+            logging.warning("Disabling containers for node: %s because %s", node, e)
 
             # disable containers if actuator_controller not reachable
             for container in containers_on_node:
@@ -336,19 +339,18 @@ def containers_linking(actuator_port):
             break
 
 
-def quota_reset(actuator_port, quota):
+def quota_reset():
     """
     Set a default number of cores for all the containers
     """
-    logging.info("Setting default cores for all containers to: %d", quota)
+    logging.info("Setting default cores for all containers to: %d", config.init_quota)
     for container in containers:
         if container.device == Device.CPU:
-            response = requests.post(
-                "http://" + container.node + ":" + str(
-                    actuator_port) + CONTAINERS_LIST_ENDPOINT + "/" + container.container_id,
-                json={"cpu_quota": int(quota * 100000)})
+            response = requests.post("http://" + container.node + ":" + str(config.actuator_port) +
+                                     config.container_list_endpoint + "/" + container.container_id,
+                                     json={"cpu_quota": int(config.init_quota * 100000)})
             logging.info("Actuator response: %s", response.text)
-            container.quota = int(quota * 100000)
+            container.quota = int(config.init_quota * 100000)
 
 
 if __name__ == "__main__":

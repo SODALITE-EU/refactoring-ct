@@ -84,8 +84,7 @@ Content-Type: application/json
   "init_quota": 2,
   "actuator_image": "nodemanager-actuator:local",
   "actuator_port": 5000,
-  "k8s_service_type": "NodePort",
-  "tfs_models_path": "/home/models/"
+  "k8s_service_type": "NodePort"
 }
 
 ### Get configuration

@@ -5,7 +5,6 @@ class Configuration:
                  actuator_image=None,
                  workers=None,
                  available_gpus=None,
-                 tfs_models_path=None,
                  k8s_service_type=None,
                  json_data=None):
         if json_data:
@@ -16,6 +15,6 @@ class Configuration:
             self.actuator_image = actuator_image
             self.workers = workers
             self.available_gpus = available_gpus
-            self.tfs_models_path = tfs_models_path
+            self.tfs_models_path = "/home/models"
             self.k8s_service_type = k8s_service_type
             self.container_list_endpoint = "/containers"

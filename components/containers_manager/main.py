@@ -19,6 +19,7 @@ app = Flask(__name__)
 CORS(app)
 
 config = None
+k8s_containers = None
 k8s_deployment = None
 k8s_service = None
 tfs_config = None
@@ -160,15 +161,15 @@ def get_k8s_service():
 
 @app.route('/configuration', methods=['POST'])
 def configure():
-    global models, status, config
+    global models, status, config, k8s_containers, k8s_deployment, k8s_service, tfs_config
     models = []
 
     logging.info("configuration started...")
 
     # read from configuration
     data = request.get_json()
-    if not all(d in data for d in ["models", "init_quota", "actuator_port", "workers", "tfs_models_path",
-                                   "available_gpus", "actuator_image", "k8s_service_type"]):
+    if not all(d in data for d in ["models", "init_quota", "actuator_port", "workers", "available_gpus",
+                                   "actuator_image", "k8s_service_type"]):
         return {"error": "config data missing"}, 404
     for model in data["models"]:
         if "profiled_rt" in model:
@@ -189,19 +190,7 @@ def configure():
                            actuator_image=data["actuator_image"],
                            workers=data["workers"],
                            available_gpus=data["available_gpus"],
-                           tfs_models_path=data["tfs_models_path"],
                            k8s_service_type=k8s_service_type)
-
-    status = "configured"
-    logging.info(status)
-
-    return {"result": "ok"}, 200
-
-
-@app.route('/start', methods=['POST'])
-def start_controller():
-    global models, containers, status, config, k8s_deployment, k8s_service, tfs_config
-    models = []
 
     # generate TF serving config file
     logging.info("generating tf serving config...")
@@ -225,6 +214,17 @@ def start_controller():
     k8s_service_yml, _ = get_k8s_service()
     logging.info(k8s_deployment_yml)
     logging.info(k8s_service_yml)
+
+    status = "configured"
+    logging.info(status)
+
+    return {"result": "ok"}, 200
+
+
+@app.route('/start', methods=['POST'])
+def start_controller():
+    global models, containers, status
+    models = []
 
     # apply k8s deployment
     config_k8s.load_kube_config()
@@ -301,6 +301,7 @@ def start_controller():
     logging.info(status)
 
     return {"result": "ok"}, 200
+
 
 def containers_linking():
     """

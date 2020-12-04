@@ -6,21 +6,14 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from controller_manager import ControllerManager
 from controller_manager_rules import ControllerManagerRules
+from configuration import Configuration
 
 app = Flask(__name__)
 CORS(app)
 
 status = None
-models_endpoint = None
-containers_endpoint = None
-min_cores = None
-max_cores = None
-control_period = None
-control_type = None
-actuator_port = None
-sched = None
+config = None
 controller = None
-dry_run = None
 
 
 @app.route('/', methods=['GET'])
@@ -30,52 +23,56 @@ def get_status():
 
 @app.route('/logs', methods=['GET'])
 def get_logs():
-    global controller
     return jsonify(controller.get_logs())
 
 
 def control():
-    global dry_run
-    global controller
-
     app.logger.info("Controller updating...")
-    if dry_run:
+    if config.dry_run:
         app.logger.info("updating (dry-run)")
     else:
         controller.update()
     app.logger.info("Controller updated, waiting for next clock...")
 
 
+@app.route('/configuration', methods=['GET'])
+def get_configuration():
+    logging.info("get configuration")
+    return {"configuration": config.__dict__}, 200
+
+
 @app.route('/configuration', methods=['POST'])
 def configure():
-    global status, models_endpoint, containers_endpoint, min_cores, max_cores, control_period, control_type,\
-        actuator_port, sched, controller, dry_run
+    global status, config
 
     logging.info("configuration started...")
 
     # read from configuration
     data = request.get_json()
 
-    containers_manager = data["containers_manager"]
-    requests_store = data["requests_store"]
-    min_cores = data["min_cores"]
-    max_cores = data["max_cores"]
-    control_period = data["control_period"]
-    control_type = data["control_type"]
-    if control_type not in ["CT", "RL"]:
+    if data["control_type"] not in ["CT", "RL"]:
+        status = "configuration error"
+        logging.info(status)
         return {"result": "error control type"}, 400
-    actuator_port = data["actuator_port"]
     if "dry_run" in data:
         dry_run = data["dry_run"]
     else:
         dry_run = False
 
-    models_endpoint = containers_manager + "/models"
-    logging.info("Setting models manager to: %s", models_endpoint)
-    containers_endpoint = containers_manager + "/containers"
-    logging.info("Setting containers_manager to: %s", containers_endpoint)
-    requests_endpoint = requests_store
-    logging.info("Setting requests_store to: %s", requests_endpoint)
+    logging.info(type(data["containers_manager"]))
+
+    config = Configuration(containers_manager=data["containers_manager"],
+                           requests_store=data["requests_store"],
+                           min_cores=data["min_cores"],
+                           max_cores=data["max_cores"],
+                           control_period=data["control_period"],
+                           control_type=data["control_type"],
+                           actuator_port=data["actuator_port"],
+                           dry_run=dry_run)
+
+    logging.info("Setting models manager to: %s", config.models_endpoint)
+    logging.info("Setting containers_manager to: %s", config.containers_endpoint)
+    logging.info("Setting requests_store to: %s", config.requests_endpoint)
 
     status = "configured"
     logging.info(status)
@@ -85,31 +82,30 @@ def configure():
 
 @app.route('/start', methods=['POST'])
 def start_controller():
-    global status, models_endpoint, containers_endpoint, min_cores, max_cores, control_period, control_type,\
-        actuator_port, sched, controller
+    global status, config, controller
 
-    if control_type == "CT":
-        controller = ControllerManager(models_endpoint,
-                                       containers_endpoint,
-                                       requests_endpoint,
-                                       actuator_port,
-                                       control_period,
-                                       min_cores,
-                                       max_cores)
+    if config.control_type == "CT":
+        controller = ControllerManager(config.models_endpoint,
+                                       config.containers_endpoint,
+                                       config.requests_endpoint,
+                                       config.actuator_port,
+                                       config.control_period,
+                                       config.min_cores,
+                                       config.max_cores)
     else:
-        controller = ControllerManagerRules(models_endpoint,
-                                            containers_endpoint,
-                                            requests_endpoint,
-                                            actuator_port,
-                                            control_period,
-                                            min_cores,
-                                            max_cores)
-    if dry_run:
+        controller = ControllerManagerRules(config.models_endpoint,
+                                            config.containers_endpoint,
+                                            config.requests_endpoint,
+                                            config.actuator_port,
+                                            config.control_period,
+                                            config.min_cores,
+                                            config.max_cores)
+    if config.dry_run:
         logging.info("Controller init (dry-run")
     else:
         controller.init()
 
-    sched.add_job(control, 'interval', seconds=control_period, id='nodemanager-controller')
+    sched.add_job(control, 'interval', seconds=config.control_period, id='nodemanager-controller')
 
     status = "active"
     logging.info(status)

@@ -46,25 +46,25 @@ function refreshStatus(){
   $.get(host_containers + "/", function (data) {
     $("#containers-manager-status").text(data["status"])
   }).fail(function() {
-    $("#containers-manager-status").val("?")
+    $("#containers-manager-status").text("?")
   });
 
   $.get(host_requests + "/", function (data) {
     $("#requests-store-status").text(data["status"])
   }).fail(function() {
-    $("#requests-store-status").val("?")
+    $("#requests-store-status").text("?")
   });
 
   $.get(host_controller + "/", function (data) {
     $("#controller-status").text(data["status"])
   }).fail(function() {
-    $("#controller-status").val("?")
+    $("#controller-status").text("?")
   });
 
   $.get(host_dispatcher + "/", function (data) {
     $("#dispatcher-status").text(data["status"])
   }).fail(function() {
-    $("#dispatcher-status").val("?")
+    $("#dispatcher-status").text("?")
   });
 }
 refreshStatus()
@@ -73,27 +73,52 @@ refreshStatus()
 // Configuration
 function refreshConfiguration(){
   $.get(host_containers + "/configuration/tfs", function (data) {
-    $("#tfs-config").val(data.configuration)
+    $("#tfs-config").val(data["configuration"])
   }).fail(function() {
     $("#tfs-config").val("?")
   });
 
   $.get(host_containers + "/configuration/k8s/deployment", function (data) {
-    $("#k8s-deployment").val(data.configuration)
+    $("#k8s-deployment").val(data["configuration"])
   }).fail(function() {
     $("#k8s-deployment").val("?")
   });
 
   $.get(host_containers + "/configuration/k8s/service", function (data) {
-    $("#k8s-service").val(data.configuration)
+    $("#k8s-service").val(data["configuration"])
   }).fail(function() {
     $("#k8s-service").val("?")
+  });
+
+  $.get(host_requests + "/configuration", function (data) {
+    $("#request-store").val(JSON.stringify(data["configuration"], undefined, 4))
+  }).fail(function(data) {
+    $("#request-store").val("?")
+  });
+
+  $.get(host_controller + "/configuration", function (data) {
+    $("#controller").val(JSON.stringify(data["configuration"], undefined, 4))
+  }).fail(function(data) {
+    $("#controller").val("?")
+  });
+
+  $.get(host_containers + "/configuration", function (data) {
+    $("#containers-manager").val(JSON.stringify(data["configuration"], undefined, 4))
+  }).fail(function(data) {
+    $("#containers-manager").val("?")
+  });
+
+  $.get(host_dispatcher + "/configuration", function (data) {
+    $("#dispatcher").val(JSON.stringify(data["configuration"], undefined, 4))
+  }).fail(function(data) {
+    $("#dispatcher").val("?")
   });
 }
 refreshConfiguration()
 // END Configuration
 
-$("#table-controller-log").bootstrapTable({
+if($("#table-controller-log").length){
+  $("#table-controller-log").bootstrapTable({
   autoRefresh: true,
   autoRefreshInterval: 5,
   url: host_controller + "/logs",
@@ -117,325 +142,336 @@ $("#table-controller-log").bootstrapTable({
     },
   ],
 });
+}
 
-$("#table-models").bootstrapTable({
-  autoRefresh: true,
-  autoRefreshInterval: 10,
-  url: host_containers + "/models",
-  pagination: false,
-  search: true,
-  columns: [
-    {
-      field: "name",
-      title: "name",
-      sortable: true,
-    },
-    {
-      field: "version",
-      title: "version",
-      sortable: true,
-    },
-    {
-      field: "sla",
-      title: "sla",
-      sortable: true,
-    },
-    {
-      field: "alpha",
-      title: "alpha",
-      sortable: true,
-    },
-    {
-      field: "profiled_rt",
-      title: "profiled_rt",
-      sortable: true,
-    },
-  ],
-});
+if($("#table-models").length) {
+  $("#table-models").bootstrapTable({
+    autoRefresh: true,
+    autoRefreshInterval: 10,
+    url: host_containers + "/models",
+    pagination: false,
+    search: true,
+    columns: [
+      {
+        field: "name",
+        title: "name",
+        sortable: true,
+      },
+      {
+        field: "version",
+        title: "version",
+        sortable: true,
+      },
+      {
+        field: "sla",
+        title: "sla",
+        sortable: true,
+      },
+      {
+        field: "alpha",
+        title: "alpha",
+        sortable: true,
+      },
+      {
+        field: "profiled_rt",
+        title: "profiled_rt",
+        sortable: true,
+      },
+    ],
+  });
+}
 
-$("#table-containers").bootstrapTable({
-  autoRefresh: true,
-  autoRefreshInterval: 1,
-  url: host_containers + "/containers",
-  pagination: false,
-  search: true,
-  columns: [
-    {
-      field: "model",
-      title: "model",
-      sortable: true,
-    },
-    {
-      field: "container",
-      title: "container",
-      sortable: true,
-    },
-    {
-      field: "container_id",
-      title: "container_id",
-      formatter: containerIdFormatter,
-      sortable: true,
-    },
-    {
-      field: "version",
-      title: "version",
-      sortable: true,
-    },
-    {
-      field: "active",
-      title: "active",
-      sortable: true,
-    },
-    {
-      field: "device",
-      title: "device",
-      formatter: deviceFormatter,
-      sortable: true,
-    },
-    {
-      field: "node",
-      title: "node",
-      sortable: true,
-    },
-    {
-      field: "port",
-      title: "port",
-      sortable: true,
-    },
-    {
-      field: "endpoint",
-      title: "endpoint",
-      sortable: true,
-    },
-    {
-      field: "quota",
-      title: "quota",
-      sortable: true,
-    },
-  ],
-});
+if($("#table-containers").length) {
+  $("#table-containers").bootstrapTable({
+    autoRefresh: true,
+    autoRefreshInterval: 1,
+    url: host_containers + "/containers",
+    pagination: false,
+    search: true,
+    columns: [
+      {
+        field: "model",
+        title: "model",
+        sortable: true,
+      },
+      {
+        field: "container",
+        title: "container",
+        sortable: true,
+      },
+      {
+        field: "container_id",
+        title: "container_id",
+        formatter: containerIdFormatter,
+        sortable: true,
+      },
+      {
+        field: "version",
+        title: "version",
+        sortable: true,
+      },
+      {
+        field: "active",
+        title: "active",
+        sortable: true,
+      },
+      {
+        field: "device",
+        title: "device",
+        formatter: deviceFormatter,
+        sortable: true,
+      },
+      {
+        field: "node",
+        title: "node",
+        sortable: true,
+      },
+      {
+        field: "port",
+        title: "port",
+        sortable: true,
+      },
+      {
+        field: "endpoint",
+        title: "endpoint",
+        sortable: true,
+      },
+      {
+        field: "quota",
+        title: "quota",
+        sortable: true,
+      },
+    ],
+  });
+}
 
-$("#table-requests").bootstrapTable({
-  autoRefresh: true,
-  autoRefreshInterval: 2,
-  url: host_requests + "/requests",
-  pagination: true,
-  search: true,
-  columns: [
-    {
-      field: "id",
-      title: "id",
-      sortable: true,
-    },
-    {
-      field: "model",
-      title: "model",
-      sortable: true,
-    },
-    {
-      field: "version",
-      title: "version",
-      sortable: true,
-    },
-    {
-      field: "node",
-      title: "node",
-      sortable: true,
-    },
-    {
-      field: "container",
-      title: "container",
-      sortable: true,
-    },
-    {
-      field: "device",
-      title: "device",
-      sortable: true,
-      formatter: deviceFormatter,
-    },
-    {
-      field: "instances",
-      title: "instances",
-    },
-    {
-      field: "state",
-      formatter: stateFormatter,
-      title: "state",
-    },
-    {
-      field: "response",
-      title: "response",
-      formatter: responseFormatter,
-    },
-    {
-      field: "ts_in",
-      title: "ts_in",
-      sortable: true,
-    },
-    {
-      field: "ts_out",
-      title: "ts_out",
-      sortable: true,
-    },
-    {
-      field: "process_time",
-      title: "process_time",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "resp_time",
-      title: "resp_time",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-  ],
-});
+if($("#table-requests").length) {
+  $("#table-requests").bootstrapTable({
+    autoRefresh: true,
+    autoRefreshInterval: 2,
+    url: host_requests + "/requests",
+    pagination: true,
+    search: true,
+    columns: [
+      {
+        field: "id",
+        title: "id",
+        sortable: true,
+      },
+      {
+        field: "model",
+        title: "model",
+        sortable: true,
+      },
+      {
+        field: "version",
+        title: "version",
+        sortable: true,
+      },
+      {
+        field: "node",
+        title: "node",
+        sortable: true,
+      },
+      {
+        field: "container",
+        title: "container",
+        sortable: true,
+      },
+      {
+        field: "device",
+        title: "device",
+        sortable: true,
+        formatter: deviceFormatter,
+      },
+      {
+        field: "instances",
+        title: "instances",
+      },
+      {
+        field: "state",
+        formatter: stateFormatter,
+        title: "state",
+      },
+      {
+        field: "response",
+        title: "response",
+        formatter: responseFormatter,
+      },
+      {
+        field: "ts_in",
+        title: "ts_in",
+        sortable: true,
+      },
+      {
+        field: "ts_out",
+        title: "ts_out",
+        sortable: true,
+      },
+      {
+        field: "process_time",
+        title: "process_time",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "resp_time",
+        title: "resp_time",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+    ],
+  });
+}
 
-$("#table-metrics-model").bootstrapTable({
-  autoRefresh: true,
-  autoRefreshInterval: 5,
-  url: host_requests + "/metrics/model",
-  pagination: false,
-  search: false,
-  columns: [
-    {
-      field: "model",
-      title: "model",
-      sortable: true,
-    },
-    {
-      field: "version",
-      title: "version",
-      sortable: true,
-    },
-    {
-      field: "metrics.completed",
-      title: "metrics.completed",
-      sortable: true,
-    },
-    {
-      field: "metrics.created",
-      title: "metrics.created",
-      sortable: true,
-    },
-    {
-      field: "metrics.on_gpu",
-      title: "metrics.on_gpu",
-      sortable: true,
-    },
-    {
-      field: "metrics.on_cpu",
-      title: "metrics.on_cpu",
-      sortable: true,
-    },
-    {
-      field: "metrics.avg",
-      title: "metrics.avg",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.avg_process",
-      title: "metrics.avg_process",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.dev",
-      title: "metrics.dev",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.min",
-      title: "metrics.min",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.max",
-      title: "metrics.max",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-  ],
-});
+if($("#table-metrics-model").length) {
+  $("#table-metrics-model").bootstrapTable({
+    autoRefresh: true,
+    autoRefreshInterval: 5,
+    url: host_requests + "/metrics/model",
+    pagination: false,
+    search: false,
+    columns: [
+      {
+        field: "model",
+        title: "model",
+        sortable: true,
+      },
+      {
+        field: "version",
+        title: "version",
+        sortable: true,
+      },
+      {
+        field: "metrics.completed",
+        title: "metrics.completed",
+        sortable: true,
+      },
+      {
+        field: "metrics.created",
+        title: "metrics.created",
+        sortable: true,
+      },
+      {
+        field: "metrics.on_gpu",
+        title: "metrics.on_gpu",
+        sortable: true,
+      },
+      {
+        field: "metrics.on_cpu",
+        title: "metrics.on_cpu",
+        sortable: true,
+      },
+      {
+        field: "metrics.avg",
+        title: "metrics.avg",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.avg_process",
+        title: "metrics.avg_process",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.dev",
+        title: "metrics.dev",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.min",
+        title: "metrics.min",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.max",
+        title: "metrics.max",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+    ],
+  });
+}
 
-$("#table-metrics-container").bootstrapTable({
-  autoRefresh: true,
-  autoRefreshInterval: 2,
-  url: host_requests + "/metrics/container",
-  pagination: false,
-  search: false,
-  columns: [
-    {
-      field: "container.container",
-      title: "container.container",
-      sortable: true,
-    },
-    {
-      field: "container.model",
-      title: "container.model",
-      sortable: true,
-    },
-    {
-      field: "container.node",
-      title: "container.node",
-      sortable: true,
-    },
-    {
-      field: "metrics.completed",
-      title: "metrics.completed",
-      sortable: true,
-    },
-    {
-      field: "metrics.created",
-      title: "metrics.created",
-      sortable: true,
-    },
-    {
-      field: "metrics.on_gpu",
-      title: "metrics.on_gpu",
-      sortable: true,
-    },
-    {
-      field: "metrics.on_cpu",
-      title: "metrics.on_cpu",
-      sortable: true,
-    },
-    {
-      field: "metrics.avg",
-      title: "metrics.avg",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.avg_process",
-      title: "metrics.avg_process",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.dev",
-      title: "metrics.dev",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.min",
-      title: "metrics.min",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-    {
-      field: "metrics.max",
-      title: "metrics.max",
-      formatter: floatFormatter,
-      sortable: true,
-    },
-  ],
-});
+if($("#table-metrics-container").length) {
+  $("#table-metrics-container").bootstrapTable({
+    autoRefresh: true,
+    autoRefreshInterval: 2,
+    url: host_requests + "/metrics/container",
+    pagination: false,
+    search: false,
+    columns: [
+      {
+        field: "container.container",
+        title: "container.container",
+        sortable: true,
+      },
+      {
+        field: "container.model",
+        title: "container.model",
+        sortable: true,
+      },
+      {
+        field: "container.node",
+        title: "container.node",
+        sortable: true,
+      },
+      {
+        field: "metrics.completed",
+        title: "metrics.completed",
+        sortable: true,
+      },
+      {
+        field: "metrics.created",
+        title: "metrics.created",
+        sortable: true,
+      },
+      {
+        field: "metrics.on_gpu",
+        title: "metrics.on_gpu",
+        sortable: true,
+      },
+      {
+        field: "metrics.on_cpu",
+        title: "metrics.on_cpu",
+        sortable: true,
+      },
+      {
+        field: "metrics.avg",
+        title: "metrics.avg",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.avg_process",
+        title: "metrics.avg_process",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.dev",
+        title: "metrics.dev",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.min",
+        title: "metrics.min",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+      {
+        field: "metrics.max",
+        title: "metrics.max",
+        formatter: floatFormatter,
+        sortable: true,
+      },
+    ],
+  });
+}
 
 function getRandomColor(alpha) {
   var o = Math.round,

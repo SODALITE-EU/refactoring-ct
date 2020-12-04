@@ -21,6 +21,9 @@ Content-Type: application/json
   "dry_run": true
 }
 
+### Get configuration
+GET http://{{host}}:{{port}}/configuration
+
 ### Start the controller
 POST http://{{host}}:{{port}}/start
 

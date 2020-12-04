@@ -133,3 +133,4 @@ models/googlenet/00000001/
 models/vgg16/00000001/
 /components/containers_manager/k8s_deployment.yml
 /components/containers_manager/k8s_service.yml
+/components/dispatcher/config.json

@@ -15,6 +15,7 @@ class Configuration:
             self.actuator_image = actuator_image
             self.workers = workers
             self.available_gpus = available_gpus
-            self.tfs_models_path = "/home/models"
+            self.tfs_models_path = "/home/models/"
             self.k8s_service_type = k8s_service_type
             self.container_list_endpoint = "/containers"
+            self.tfs_config_file_name = self.tfs_models_path + "tf_serving_models.config"

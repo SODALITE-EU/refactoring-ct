@@ -195,8 +195,7 @@ def configure():
     # generate TF serving config file
     logging.info("generating tf serving config...")
     tfs_config = Configurator.tf_config_generator(models, config.tfs_models_path)
-    tfs_config_file_name = config.tfs_models_path + "tf_serving_models.config"
-    logging.info("tf serving config file will be saved to " + tfs_config_file_name)
+    logging.info("tf serving config file will be saved to " + config.tfs_config_file_name)
 
     # generate K8s deployment and service
     logging.info("generating k8s deployment and service...")
@@ -208,7 +207,7 @@ def configure():
                                                                                     config.k8s_service_type,
                                                                                     config.tfs_models_path,
                                                                                     tfs_config,
-                                                                                    tfs_config_file_name)
+                                                                                    config.tfs_config_file_name)
 
     k8s_deployment_yml, _ = get_k8s_deployment()
     k8s_service_yml, _ = get_k8s_service()

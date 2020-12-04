@@ -1,6 +1,7 @@
 from kubernetes import client
 from models.container import Container
 from models.device import Device
+from .k8s_configuration import K8sConfiguration
 
 class Configurator:
 
@@ -17,44 +18,39 @@ class Configurator:
 
     # generate a K8s deployment and service
     @staticmethod
-    def k8s_config_generator(workers, models, available_gpus, actuator_image, actuator_port, k8s_service_type,
-                             tfs_models_path, tfs_config, tfs_config_file_name):
+    def k8s_config_generator(k8s_config: K8sConfiguration):
         # generate deployment
-        containers, deployment = Configurator.k8s_deployment_generator(models, actuator_image, available_gpus,
-                                                                       tfs_models_path, tfs_config,
-                                                                       tfs_config_file_name, workers, actuator_port)
+        containers, deployment = Configurator.k8s_deployment_generator(k8s_config)
         # generate service
-        service = Configurator.k8s_service_generator(models, available_gpus, k8s_service_type, actuator_port)
+        service = Configurator.k8s_service_generator(k8s_config)
 
         return containers, deployment, service
 
     # generate a K8s deployment
     @staticmethod
-    def k8s_deployment_generator(models, actuator_image, available_gpus, tfs_models_path, tfs_config,
-                                 tfs_config_file_name, workers, actuator_port):
-
+    def k8s_deployment_generator(k8s_config: K8sConfiguration):
         # add containers
         containers = []
         k8s_containers = []
         # add actuator container
         k8s_container = client.V1Container(name="nodemanager-actuator",
-                                           image=actuator_image,
-                                           ports=[client.V1ContainerPort(container_port=actuator_port)],
+                                           image=k8s_config.actuator_image,
+                                           ports=[client.V1ContainerPort(container_port=k8s_config.actuator_port)],
                                            volume_mounts=[client.V1VolumeMount(name="docker-sock",
                                                                                mount_path="/var/run")])
         k8s_containers.append(k8s_container)
 
         # add CPU containers
         base_port = 8501
-        for i, model in enumerate(models):
+        for i, model in enumerate(k8s_config.models):
             container_name = "nodemanager-rest-cpu-" + str(i + 1)
             k8s_container = client.V1Container(name=container_name,
                                                image="tensorflow/serving:latest",
-                                               args=["--model_config_file=" + tfs_config_file_name,
+                                               args=["--model_config_file=" + k8s_config.tfs_config_file_name,
                                                      "--rest_api_port=" + str(base_port)],
                                                ports=[client.V1ContainerPort(container_port=base_port)],
                                                volume_mounts=[client.V1VolumeMount(name="shared-models",
-                                                                                   mount_path=tfs_models_path)])
+                                                                                   mount_path=k8s_config.tfs_models_path)])
             k8s_containers.append(k8s_container)
             containers.append(Container(model=model.name,
                                         version=model.version,
@@ -67,15 +63,15 @@ class Configurator:
             base_port += 1
 
         # add GPU containers
-        for gpu in range(available_gpus):
+        for gpu in range(k8s_config.available_gpus):
             container_name = "nodemanager-rest-gpu-" + str(gpu + 1)
             k8s_container = client.V1Container(name=container_name,
                                                image="tensorflow/serving:latest-gpu",
-                                               args=["--model_config_file=" + tfs_config_file_name,
+                                               args=["--model_config_file=" + k8s_config.tfs_config_file_name,
                                                      "--rest_api_port=" + str(base_port)],
                                                ports=[client.V1ContainerPort(container_port=base_port)],
                                                volume_mounts=[client.V1VolumeMount(name="shared-models",
-                                                                                   mount_path=tfs_models_path)],
+                                                                                   mount_path=k8s_config.tfs_models_path)],
                                                env=[client.V1EnvVar(name="NVIDIA_VISIBLE_DEVICES",
                                                                     value=str(gpu + 1))])
             k8s_containers.append(k8s_container)
@@ -91,7 +87,7 @@ class Configurator:
 
         # add volumes
         volumes = [client.V1Volume(name="shared-models",
-                                   host_path=client.V1HostPathVolumeSource(path=tfs_models_path)),
+                                   host_path=client.V1HostPathVolumeSource(path=k8s_config.tfs_models_path)),
                    client.V1Volume(name="docker-sock",
                                    host_path=client.V1HostPathVolumeSource(path="/var/run"))]
 
@@ -99,10 +95,9 @@ class Configurator:
         affinity = client.V1Affinity(pod_anti_affinity=client.V1PodAffinity(required_during_scheduling_ignored_during_execution=[client.V1PodAffinityTerm(topology_key="kubernetes.io/hostname")]))
 
         # init containers
-        init_containers = [client.V1Container(name="download-tfs-config",
-                                              image="alpine",
-                                              command=["/bin/sh"],
-                                              args=["mkdir", "-p", tfs_models_path, "&&", "cat", "<<", "'EOF'", ">>", tfs_config_file_name, tfs_config, "EOF"])]
+        init_containers = [client.V1Container(name="tfs-init",
+                                              image=k8s_config.tfs_init_image,
+                                              args=["-c", k8s_config.tfs_config_endpoint, "-m", k8s_config.tfs_models_url])]
 
         # add pod spec
         pod_spec = client.V1PodSpec(containers=k8s_containers,
@@ -115,7 +110,7 @@ class Configurator:
         # add deployment spec
         deployment_spec = client.V1DeploymentSpec(selector=client.V1LabelSelector(match_labels={"run": "nodemanager"}),
                                                   template=pod_template_spec,
-                                                  replicas=workers)
+                                                  replicas=k8s_config.workers)
         # build deployment
         deployment = client.V1Deployment(api_version="apps/v1",
                                          kind="Deployment",
@@ -127,18 +122,18 @@ class Configurator:
 
     # generate a K8s deployment
     @staticmethod
-    def k8s_service_generator(models, available_gpus, k8s_service_type, actuator_port):
+    def k8s_service_generator(k8s_config: K8sConfiguration):
         ports = []
 
         # add actuator port
         port = client.V1ServicePort(name="nodemanager-actuator",
-                                    port=actuator_port,
-                                    target_port=actuator_port)
+                                    port=k8s_config.actuator_port,
+                                    target_port=k8s_config.actuator_port)
         ports.append(port)
 
         # add CPU ports
         base_port = 8501
-        for i, model in enumerate(models):
+        for i, model in enumerate(k8s_config.models):
             port = client.V1ServicePort(name="nodemanager-rest-cpu-" + str(i + 1),
                                         port=base_port,
                                         target_port=base_port)
@@ -146,14 +141,14 @@ class Configurator:
             base_port += 1
 
         # add GPU ports
-        for gpu in range(available_gpus):
+        for gpu in range(k8s_config.available_gpus):
             port = client.V1ServicePort(name="nodemanager-rest-gpu-" + str(gpu + 1),
                                         port=base_port,
                                         target_port=base_port)
             ports.append(port)
             base_port += 1
 
-        service_spec = client.V1ServiceSpec(type=k8s_service_type,
+        service_spec = client.V1ServiceSpec(type=k8s_config.k8s_service_type,
                                             ports=ports,
                                             selector={"run": "nodemanager"})
 

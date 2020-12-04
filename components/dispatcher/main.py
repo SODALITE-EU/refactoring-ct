@@ -118,10 +118,10 @@ def post_configuration():
                            max_consumers_cpu=data["max_consumers_cpu"],
                            max_consumers_gpu=data["max_consumers_gpu"])
 
-    logging.info("configuration: " + str(config.to_dict()))
+    logging.info("configuration: " + str(config.__dict__))
 
     with open('config.json', 'w') as config_file:
-        json.dump(config.to_dict(), config_file)
+        json.dump(config.__dict__, config_file)
 
     status = "configured"
     logging.info(status)
@@ -137,7 +137,7 @@ def get_configuration():
     # read from file
     logging.info("read configuration from file")
     if read_config_from_file():
-        return {"configuration": config.to_dict()}, 200
+        return {"configuration": config.__dict__}, 200
     else:
         logging.info("configuration error")
         return {"error": "file error"}, 404
@@ -164,7 +164,7 @@ def configure():
             logging.info("configuration reading error")
             return False
 
-    logging.info("configuration read: " + str(config.to_dict()))
+    logging.info("configuration read: " + str(config.__dict__))
     logging.info("Getting models from: %s", config.models_endpoint)
     logging.info("Getting containers from: %s", config.containers_endpoint)
 

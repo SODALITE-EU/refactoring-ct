@@ -25,22 +25,7 @@ class Configuration:
             self.max_consumers_cpu = max_consumers_cpu
             self.max_consumers_gpu = max_consumers_gpu
 
-        self.models_endpoint = self.containers_manager + "/models"
-        self.containers_endpoint = self.containers_manager + "/containers"
-        self.requests_store_endpoint = self.requests_store + "/requests"
+            self.models_endpoint = self.containers_manager + "/models"
+            self.containers_endpoint = self.containers_manager + "/containers"
+            self.requests_store_endpoint = self.requests_store + "/requests"
 
-    def to_dict(self):
-        return {
-            "containers_manager": self.containers_manager,
-            "requests_store": self.requests_store,
-            "verbose": self.verbose,
-            "gpu_queues_policy": self.gpu_queues_policy,
-            "cpu_queues_policy": int(self.cpu_queues_policy),
-            "max_log_consumers": self.max_log_consumers,
-            "max_polling_threads": self.max_polling_threads,
-            "max_consumers_cpu": self.max_consumers_cpu,
-            "max_consumers_gpu": self.max_consumers_gpu,
-            "models_endpoint": self.models_endpoint,
-            "containers_endpoint": self.containers_endpoint,
-            "requests_store_endpoint": self.requests_store_endpoint
-        }

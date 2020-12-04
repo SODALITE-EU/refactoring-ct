@@ -58,7 +58,6 @@ Content-Type: application/json
   "version": 1
 }
 
-
 ### Post configuration
 POST http://{{host}}:{{port}}/configuration
 Content-Type: application/json
@@ -100,3 +99,6 @@ GET http://{{host}}:{{port}}/configuration/k8s/deployment
 
 ### Get K8s service
 GET http://{{host}}:{{port}}/configuration/k8s/deployment
+
+### Start the controller
+POST http://{{host}}:{{port}}/start

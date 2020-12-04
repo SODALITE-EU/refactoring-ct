@@ -10,7 +10,8 @@ from flask_cors import CORS
 from models.model import Model
 from models.device import Device
 from models.container import Container
-from kubernetes import client, config
+from kubernetes import client as client_k8s
+from kubernetes import config as config_k8s
 from configurator import Configurator
 from configuration import Configuration
 
@@ -159,7 +160,7 @@ def get_k8s_service():
 
 @app.route('/configuration', methods=['POST'])
 def configure():
-    global models, containers, status, config, k8s_deployment, k8s_service, tfs_config
+    global models, status, config
     models = []
 
     logging.info("configuration started...")
@@ -188,8 +189,19 @@ def configure():
                            actuator_image=data["actuator_image"],
                            workers=data["workers"],
                            available_gpus=data["available_gpus"],
-                           tfs_models_path = data["tfs_models_path"],
-                           k8s_service_type=data["k8s_service_type"])
+                           tfs_models_path=data["tfs_models_path"],
+                           k8s_service_type=k8s_service_type)
+
+    status = "configured"
+    logging.info(status)
+
+    return {"result": "ok"}, 200
+
+
+@app.route('/start', methods=['POST'])
+def start_controller():
+    global models, containers, status, config, k8s_deployment, k8s_service, tfs_config
+    models = []
 
     # generate TF serving config file
     logging.info("generating tf serving config...")
@@ -204,9 +216,9 @@ def configure():
                                                                                     config.available_gpus,
                                                                                     config.actuator_image,
                                                                                     config.actuator_port,
-                                                                                    k8s_service_type,
-                                                                                    tfs_config,
+                                                                                    config.k8s_service_type,
                                                                                     config.tfs_models_path,
+                                                                                    tfs_config,
                                                                                     tfs_config_file_name)
 
     k8s_deployment_yml, _ = get_k8s_deployment()
@@ -215,8 +227,8 @@ def configure():
     logging.info(k8s_service_yml)
 
     # apply k8s deployment
-    config.load_kube_config()
-    apps_api = client.AppsV1Api()
+    config_k8s.load_kube_config()
+    apps_api = client_k8s.AppsV1Api()
     resp = apps_api.create_namespaced_deployment(namespace="default", body=k8s_deployment)
     if resp and resp.metadata and resp.metadata.name:
         logging.info("Service created. status='%s'" % resp.metadata.name)
@@ -226,7 +238,7 @@ def configure():
         return {"result": "error during the creation of the K8s deployment"}, 400
 
     # apply k8s service
-    apps_api = client.CoreV1Api()
+    apps_api = client_k8s.CoreV1Api()
     resp = apps_api.create_namespaced_service(namespace="default", body=k8s_service)
     if resp and resp.metadata and resp.metadata.name:
         logging.info("Service created. status='%s'" % resp.metadata.name)
@@ -289,7 +301,6 @@ def configure():
     logging.info(status)
 
     return {"result": "ok"}, 200
-
 
 def containers_linking():
     """

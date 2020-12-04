@@ -18,11 +18,11 @@ class Configurator:
     # generate a K8s deployment and service
     @staticmethod
     def k8s_config_generator(workers, models, available_gpus, actuator_image, actuator_port, k8s_service_type,
-                             tfs_config, tfs_models_path, tfs_config_file_name):
+                             tfs_models_path, tfs_config, tfs_config_file_name):
         # generate deployment
         containers, deployment = Configurator.k8s_deployment_generator(models, actuator_image, available_gpus,
-                                                                       tfs_config, tfs_config_file_name,
-                                                                       tfs_models_path, workers, actuator_port)
+                                                                       tfs_models_path, tfs_config,
+                                                                       tfs_config_file_name, workers, actuator_port)
         # generate service
         service = Configurator.k8s_service_generator(models, available_gpus, k8s_service_type, actuator_port)
 
@@ -30,8 +30,8 @@ class Configurator:
 
     # generate a K8s deployment
     @staticmethod
-    def k8s_deployment_generator(models, actuator_image, available_gpus, tfs_config, tfs_config_file_name,
-                                 tfs_models_path, workers, actuator_port):
+    def k8s_deployment_generator(models, actuator_image, available_gpus, tfs_models_path, tfs_config,
+                                 tfs_config_file_name, workers, actuator_port):
 
         # add containers
         containers = []

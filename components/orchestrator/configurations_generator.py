@@ -1,13 +1,27 @@
 from kubernetes import client
 from models.container import Container
 from models.device import Device
-from .k8s_configuration import K8sConfiguration
+from models.model import Model
+from models.configurations import K8sConfiguration
 
-class Configurator:
+
+class ConfigurationsGenerator:
+    @staticmethod
+    def model_list(models_dict):
+        models = []
+        for model in models_dict:
+            if "profiled_rt" in model:
+                models.append(
+                    Model(model["name"], model["version"], model["sla"], model["alpha"], model["profiled_rt"]))
+            else:
+                models.append(
+                    Model(model["name"], model["version"], model["sla"], model["alpha"]))
+        return models
 
     # generate a TF config file from a list of models
     @staticmethod
-    def tf_config_generator(models, tf_serving_models_path):
+    def tf_config_generator(models_dict, tf_serving_models_path):
+        models = ConfigurationsGenerator.model_list(models_dict)
         config = "model_config_list {\n"
         for model in models:
             config += "\tconfig {\n\t\tname: '" + model.name + "'\n\t\tbase_path: '" + \
@@ -20,9 +34,9 @@ class Configurator:
     @staticmethod
     def k8s_config_generator(k8s_config: K8sConfiguration):
         # generate deployment
-        containers, deployment = Configurator.k8s_deployment_generator(k8s_config)
+        containers, deployment = ConfigurationsGenerator.k8s_deployment_generator(k8s_config)
         # generate service
-        service = Configurator.k8s_service_generator(k8s_config)
+        service = ConfigurationsGenerator.k8s_service_generator(k8s_config)
 
         return containers, deployment, service
 
@@ -37,12 +51,13 @@ class Configurator:
                                            image=k8s_config.actuator_image,
                                            ports=[client.V1ContainerPort(container_port=k8s_config.actuator_port)],
                                            volume_mounts=[client.V1VolumeMount(name="docker-sock",
-                                                                               mount_path="/var/run")])
+                                                                               mount_path="/var/run")],
+                                           image_pull_policy=k8s_config.k8s_image_pull_policy)
         k8s_containers.append(k8s_container)
 
         # add CPU containers
         base_port = 8501
-        for i, model in enumerate(k8s_config.models):
+        for i, model in enumerate(ConfigurationsGenerator.model_list(k8s_config.models)):
             container_name = "nodemanager-rest-cpu-" + str(i + 1)
             k8s_container = client.V1Container(name=container_name,
                                                image="tensorflow/serving:latest",
@@ -72,8 +87,7 @@ class Configurator:
                                                ports=[client.V1ContainerPort(container_port=base_port)],
                                                volume_mounts=[client.V1VolumeMount(name="shared-models",
                                                                                    mount_path=k8s_config.tfs_models_path)],
-                                               env=[client.V1EnvVar(name="NVIDIA_VISIBLE_DEVICES",
-                                                                    value=str(gpu + 1))])
+                                               env=[client.V1EnvVar(name="NVIDIA_VISIBLE_DEVICES", value=str(gpu + 1))])
             k8s_containers.append(k8s_container)
             containers.append(Container(model="all",
                                         version=1,
@@ -86,10 +100,10 @@ class Configurator:
             base_port += 1
 
         # add volumes
-        volumes = [client.V1Volume(name="shared-models",
-                                   host_path=client.V1HostPathVolumeSource(path=k8s_config.tfs_models_path)),
-                   client.V1Volume(name="docker-sock",
-                                   host_path=client.V1HostPathVolumeSource(path="/var/run"))]
+        volumes = [client.V1Volume(name="docker-sock",
+                                   host_path=client.V1HostPathVolumeSource(path="/var/run")),
+                   client.V1Volume(name="shared-models",
+                                   empty_dir=client.V1EmptyDirVolumeSource())]
 
         # set pod affinity
         affinity = client.V1Affinity(pod_anti_affinity=client.V1PodAffinity(required_during_scheduling_ignored_during_execution=[client.V1PodAffinityTerm(topology_key="kubernetes.io/hostname")]))
@@ -97,13 +111,19 @@ class Configurator:
         # init containers
         init_containers = [client.V1Container(name="tfs-init",
                                               image=k8s_config.tfs_init_image,
-                                              args=["-c", k8s_config.tfs_config_endpoint, "-m", k8s_config.tfs_models_url])]
+                                              args=["-c", k8s_config.tfs_config_endpoint,
+                                                    "-m", k8s_config.tfs_models_url],
+                                              image_pull_policy=k8s_config.k8s_image_pull_policy,
+                                              volume_mounts=[client.V1VolumeMount(name="shared-models",
+                                                                                  mount_path=k8s_config.tfs_models_path)])]
 
         # add pod spec
         pod_spec = client.V1PodSpec(containers=k8s_containers,
                                     volumes=volumes,
                                     affinity=affinity,
-                                    init_containers=init_containers)
+                                    init_containers=init_containers,
+                                    host_network=k8s_config.k8s_host_network,
+                                    dns_policy="Default")
         # add pod template spec
         pod_template_spec = client.V1PodTemplateSpec(metadata=client.V1ObjectMeta(labels={"run": "nodemanager"}),
                                                      spec=pod_spec)

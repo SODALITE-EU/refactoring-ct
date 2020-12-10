@@ -1,0 +1,5 @@
+flask
+PyYAML
+requests
+flask-cors
+kubernetes

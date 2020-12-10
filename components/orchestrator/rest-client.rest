@@ -1,0 +1,79 @@
+### Get the status
+GET http://{{host}}:{{port}}/
+Accept: application/json
+
+### Get configuration
+GET http://{{host}}:{{port}}/configuration
+
+### Get TF serving config file
+GET http://{{host}}:{{port}}/configuration/tfs
+
+### Get K8s deployment
+GET http://{{host}}:{{port}}/configuration/k8s/deployment
+
+### Get K8s service
+GET http://{{host}}:{{port}}/configuration/k8s/service
+
+### Post configuration
+POST http://{{host}}:{{port}}/configuration
+Content-Type: application/json
+
+{
+  "config": {
+    "models": [
+      {
+        "name": "skyline_extraction",
+        "version": 1,
+        "sla": 0.3,
+        "alpha": 0.5,
+        "profiled_rt": 0.15
+      },
+      {
+        "name": "half_plus_two",
+        "version": 1,
+        "sla": 0.4,
+        "alpha": 0.5,
+        "profiled_rt": 0.15
+      }
+    ],
+    "workers": 1,
+    "available_gpus": 2,
+    "containers_manager": "http://localhost:5001",
+    "requests_store": "http://localhost:5002",
+    "dispatcher": "http://localhost:8000",
+    "controller": "http://localhost:5003",
+    "actuator_image": "nodemanager-actuator:local",
+    "tfs_init_image": "nodemanager-tfs-init:local",
+    "tfs_config_endpoint": "http://host.minikube.internal:5000/configuration/tfs",
+    "tfs_models_url": "https://github.com/NicholasRasi/NodeManagerTestModels/archive/v1.tar.gz",
+    "actuator_port": 5000,
+    "k8s_service_type": "NodePort",
+    "k8s_image_pull_policy": "Never",
+    "k8s_host_network": true
+  },
+  "containers_manager": {
+    "init_quota": 2
+  },
+  "requests_store": {},
+  "controller": {
+    "min_cores":  0.1,
+    "max_cores": 2,
+    "control_period":  5,
+    "control_type":  "CT",
+    "dry_run": true
+  },
+  "dispatcher": {
+    "gpu_queues_policy": 2,
+    "max_log_consumers": 1,
+    "max_polling_threads": 1,
+    "max_consumers_cpu": 100,
+    "max_consumers_gpu": 100,
+    "verbose": 1
+  }
+}
+
+### Get configuration
+GET http://{{host}}:{{port}}/configuration
+
+### Start
+POST http://{{host}}:{{port}}/start

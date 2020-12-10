@@ -1,4 +1,5 @@
 host = "localhost";
+host_orchestrator = "http://" + host + ":5000";
 host_containers = "http://" + host + ":5001";
 host_requests = "http://" + host + ":5002";
 host_controller = "http://" + host + ":5003";
@@ -43,6 +44,12 @@ function resetRequestsStore() {
 
 // Status
 function refreshStatus(){
+  $.get(host_orchestrator + "/", function (data) {
+    $("#orchestrator-status").text(data["status"])
+  }).fail(function() {
+    $("#orchestrator-status").text("?")
+  });
+
   $.get(host_containers + "/", function (data) {
     $("#containers-manager-status").text(data["status"])
   }).fail(function() {
@@ -72,19 +79,19 @@ refreshStatus()
 
 // Configuration
 function refreshConfiguration(){
-  $.get(host_containers + "/configuration/tfs", function (data) {
+  $.get(host_orchestrator + "/configuration/tfs", function (data) {
     $("#tfs-config").val(data["configuration"])
   }).fail(function() {
     $("#tfs-config").val("?")
   });
 
-  $.get(host_containers + "/configuration/k8s/deployment", function (data) {
+  $.get(host_orchestrator + "/configuration/k8s/deployment", function (data) {
     $("#k8s-deployment").val(data["configuration"])
   }).fail(function() {
     $("#k8s-deployment").val("?")
   });
 
-  $.get(host_containers + "/configuration/k8s/service", function (data) {
+  $.get(host_orchestrator + "/configuration/k8s/service", function (data) {
     $("#k8s-service").val(data["configuration"])
   }).fail(function() {
     $("#k8s-service").val("?")

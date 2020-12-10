@@ -7,7 +7,7 @@ import requests
 from models.req import Req
 from models.model import Model
 from models.container import Container
-from configuration import Configuration
+from configuration import RequestsStoreConfiguration
 
 app = Flask(__name__)
 CORS(app)
@@ -165,7 +165,11 @@ def get_metrics_by_model_interval(model, version):
 @app.route('/configuration', methods=['GET'])
 def get_configuration():
     logging.info("get configuration")
-    return {"configuration": config.__dict__}, 200
+    if config:
+        return {"configuration": config.__dict__}, 200
+    else:
+        logging.warning("configuration not found")
+        return {"configuration": "not found"}, 400
 
 
 @app.route('/configuration', methods=['POST'])
@@ -174,11 +178,9 @@ def configure():
 
     logging.info("configuration started...")
 
-    # read from configuration
+    # read data
     data = request.get_json()
-
-    config = Configuration(containers_manager=data["containers_manager"])
-    containers_manager = data["containers_manager"]
+    config = RequestsStoreConfiguration(json_data=data)
 
     logging.info("Getting models from: %s", config.models_endpoint)
     logging.info("Getting containers from: %s", config.containers_endpoint)

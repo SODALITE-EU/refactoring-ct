@@ -60,7 +60,7 @@ POST http://{{host}}:{{port}}/configuration
 Content-Type: application/json
 
 {
-  "containers_manager": "localhost:5001"
+  "containers_manager": "http://localhost:5001"
 }
 
 ### Get configuration

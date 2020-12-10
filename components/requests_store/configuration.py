@@ -1,4 +1,4 @@
-class Configuration:
+class RequestsStoreConfiguration:
     def __init__(self,
                  containers_manager=None,
                  json_data=None):

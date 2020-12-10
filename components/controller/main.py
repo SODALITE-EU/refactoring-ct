@@ -1,4 +1,3 @@
-import argparse
 import logging
 from flask import request
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -6,7 +5,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from controller_manager import ControllerManager
 from controller_manager_rules import ControllerManagerRules
-from configuration import Configuration
+from models.configurations import ControllerConfiguration
 
 app = Flask(__name__)
 CORS(app)
@@ -38,7 +37,11 @@ def control():
 @app.route('/configuration', methods=['GET'])
 def get_configuration():
     logging.info("get configuration")
-    return {"configuration": config.__dict__}, 200
+    if config:
+        return {"configuration": config.__dict__}, 200
+    else:
+        logging.warning("configuration not found")
+        return {"configuration": "not found"}, 400
 
 
 @app.route('/configuration', methods=['POST'])
@@ -49,26 +52,7 @@ def configure():
 
     # read from configuration
     data = request.get_json()
-
-    if data["control_type"] not in ["CT", "RL"]:
-        status = "configuration error"
-        logging.info(status)
-        return {"result": "error control type"}, 400
-    if "dry_run" in data:
-        dry_run = data["dry_run"]
-    else:
-        dry_run = False
-
-    logging.info(type(data["containers_manager"]))
-
-    config = Configuration(containers_manager=data["containers_manager"],
-                           requests_store=data["requests_store"],
-                           min_cores=data["min_cores"],
-                           max_cores=data["max_cores"],
-                           control_period=data["control_period"],
-                           control_type=data["control_type"],
-                           actuator_port=data["actuator_port"],
-                           dry_run=dry_run)
+    config = ControllerConfiguration(json_data=data)
 
     logging.info("Setting models manager to: %s", config.models_endpoint)
     logging.info("Setting containers_manager to: %s", config.containers_endpoint)

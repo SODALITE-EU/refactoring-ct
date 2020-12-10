@@ -42,6 +42,7 @@ Content-Type: application/json
   "requests_store": "http://localhost:5002",
   "verbose": 1,
   "gpu_queues_policy": 2,
+  "cpu_queues_policy": 1,
   "max_log_consumers": 1,
   "max_polling_threads": 1,
   "max_consumers_cpu": 100,

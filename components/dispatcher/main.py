@@ -1,3 +1,5 @@
+import os
+
 from dispatcher import Dispatcher
 from dispatcher import DispatchingPolicy
 from flask import Flask, jsonify, abort, request
@@ -7,7 +9,7 @@ from models.device import Device
 from models.container import Container
 from models.queues_policies import QueuesPolicies, QueuesPolicy
 from concurrent.futures import ThreadPoolExecutor
-from configuration import Configuration
+from models.configurations import DispatcherConfiguration
 from flask_cors import CORS
 import logging
 import requests
@@ -24,20 +26,20 @@ active = False
 config = None
 reqs_queues = {}
 log_queue = queue.Queue()
+config_filename = 'config.json'
 
 
 @app.route('/', methods=['GET'])
 def get_status():
+    get_configuration()
     return {"status": status}
 
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # check if the component is active
-    if not active:
-        # check if configuration file was loaded (lazy-load)
-        if not configure():
-            return {'error': 'component not configured'}
+    # check if the component is active and the configuration file was loaded (lazy-load)
+    if not active and not configure():
+        return {'error': 'component not configured'}
 
     # the component is configured and active
     data = request.get_json()
@@ -108,19 +110,11 @@ def post_configuration():
 
     # read from configuration
     data = request.get_json()
-
-    config = Configuration(containers_manager=data["containers_manager"],
-                           requests_store=data["requests_store"],
-                           verbose=data["verbose"],
-                           gpu_queues_policy=data["gpu_queues_policy"],
-                           max_log_consumers=data["max_log_consumers"],
-                           max_polling_threads=data["max_polling_threads"],
-                           max_consumers_cpu=data["max_consumers_cpu"],
-                           max_consumers_gpu=data["max_consumers_gpu"])
+    config = DispatcherConfiguration(json_data=data)
 
     logging.info("configuration: " + str(config.__dict__))
 
-    with open('config.json', 'w') as config_file:
+    with open(config_filename, 'w') as config_file:
         json.dump(config.__dict__, config_file)
 
     status = "configured"
@@ -131,27 +125,28 @@ def post_configuration():
 
 @app.route('/configuration', methods=['GET'])
 def get_configuration():
-    global config
+    global config, status
     logging.info("getting configuration started...")
 
     # read from file
     logging.info("read configuration from file")
-    if read_config_from_file():
+    if config or read_config_from_file():
+        status = "configured"
         return {"configuration": config.__dict__}, 200
     else:
-        logging.info("configuration error")
-        return {"error": "file error"}, 404
+        logging.warning("configuration not found")
+        return {"configuration": "not found"}, 404
 
 
 def read_config_from_file():
     global config
     try:
-        with open('config.json') as json_file:
+        with open(config_filename) as json_file:
             data = json.load(json_file)
-            config = Configuration(json_data=data)
+            config = DispatcherConfiguration(json_data=data)
             return True
     except IOError as e:
-        logging.info("configuration error")
+        logging.error("configuration error")
         return False
 
 
@@ -161,8 +156,10 @@ def configure():
     if not config:
         logging.info("reading config from file")
         if not read_config_from_file():
-            logging.info("configuration reading error")
+            logging.error("configuration reading error")
             return False
+        else:
+            logging.info("configuration read from file")
 
     logging.info("configuration read: " + str(config.__dict__))
     logging.info("Getting models from: %s", config.models_endpoint)
@@ -235,13 +232,18 @@ def configure():
     return True
 
 
-def create_app():
+def create_app(delete_config=False):
     global status
 
     # init log
     coloredlogs.install(level='DEBUG', milliseconds=True)
     # log_format = "%(asctime)s:%(levelname)s:%(name)s: %(filename)s:%(lineno)d:%(message)s"
     # logging.basicConfig(level='DEBUG', format=log_format)
+
+    # delete config file
+    if delete_config and os.path.exists(config_filename):
+        logging.info("deleting config file")
+        os.remove(config_filename)
 
     status = "inactive"
     logging.info(status)

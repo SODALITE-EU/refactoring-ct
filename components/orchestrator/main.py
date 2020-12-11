@@ -259,7 +259,7 @@ def configure():
                                                         controller=data["config"]["controller"])
 
     # deployment configuration
-    configs["k8s_config"] = K8sConfiguration(workers=data["config"]["workers"],
+    configs["k8s_config"] = K8sConfiguration(initial_replicas=data["config"]["workers"],
                                              models=data["config"]["models"],
                                              available_gpus=data["config"]["available_gpus"],
                                              actuator_image=data["config"]["actuator_image"],
@@ -274,7 +274,6 @@ def configure():
 
     # components configuration
     configs["containers_manager"] = ContainersManagerConfiguration(models=configs["k8s_config"].models,
-                                                                   workers=configs["k8s_config"].workers,
                                                                    available_gpus=configs["k8s_config"].available_gpus,
                                                                    actuator_port=configs["k8s_config"].actuator_port,
                                                                    init_quota=data["containers_manager"]["init_quota"])

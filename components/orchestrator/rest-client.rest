@@ -36,7 +36,7 @@ Content-Type: application/json
         "profiled_rt": 0.15
       }
     ],
-    "workers": 1,
+    "initial_replicas": 1,
     "available_gpus": 2,
     "containers_manager": "http://localhost:5001",
     "requests_store": "http://localhost:5002",

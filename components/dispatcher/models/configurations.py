@@ -24,7 +24,7 @@ class OrchestratorConfiguration:
 
 class K8sConfiguration:
     def __init__(self,
-                 workers=None,
+                 initial_replicas=None,
                  models=None,
                  available_gpus=None,
                  actuator_image=None,
@@ -40,7 +40,7 @@ class K8sConfiguration:
         if json_data:
             self.__dict__ = json_data
         else:
-            self.workers = workers
+            self.initial_replicas = initial_replicas
             self.models = models
             self.available_gpus = available_gpus
             self.actuator_image = actuator_image
@@ -59,7 +59,6 @@ class K8sConfiguration:
 class ContainersManagerConfiguration:
     def __init__(self,
                  models=None,
-                 workers=None,
                  available_gpus=None,
                  actuator_port=None,
                  init_quota=None,
@@ -69,7 +68,6 @@ class ContainersManagerConfiguration:
             self.__dict__ = json_data
         else:
             self.models = models
-            self.workers = workers
             self.available_gpus = available_gpus
             self.actuator_port = actuator_port
             self.init_quota = init_quota

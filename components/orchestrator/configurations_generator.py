@@ -130,7 +130,7 @@ class ConfigurationsGenerator:
         # add deployment spec
         deployment_spec = client.V1DeploymentSpec(selector=client.V1LabelSelector(match_labels={"run": "nodemanager"}),
                                                   template=pod_template_spec,
-                                                  replicas=k8s_config.workers)
+                                                  replicas=k8s_config.initial_replicas)
         # build deployment
         deployment = client.V1Deployment(api_version="apps/v1",
                                          kind="Deployment",

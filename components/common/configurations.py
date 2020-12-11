@@ -29,6 +29,8 @@ class K8sConfiguration:
                  available_gpus=None,
                  actuator_image=None,
                  actuator_port=None,
+                 k8s_api=None,
+                 k8s_api_token=None,
                  k8s_service_type=None,
                  k8s_image_pull_policy=None,
                  k8s_host_network=None,
@@ -45,6 +47,8 @@ class K8sConfiguration:
             self.available_gpus = available_gpus
             self.actuator_image = actuator_image
             self.actuator_port = actuator_port
+            self.k8s_api = k8s_api
+            self.k8s_api_token = k8s_api_token
             self.k8s_service_type = k8s_service_type
             self.k8s_image_pull_policy = k8s_image_pull_policy
             self.k8s_host_network = k8s_host_network
@@ -59,19 +63,17 @@ class K8sConfiguration:
 class ContainersManagerConfiguration:
     def __init__(self,
                  models=None,
-                 available_gpus=None,
+                 containers=None,
                  actuator_port=None,
                  init_quota=None,
-                 containers=None,
                  json_data=None):
         if json_data:
             self.__dict__ = json_data
         else:
             self.models = models
-            self.available_gpus = available_gpus
+            self.containers = containers
             self.actuator_port = actuator_port
             self.init_quota = init_quota
-            self.containers = containers
         self.container_list_endpoint = "/containers"
 
 

@@ -59,19 +59,17 @@ class K8sConfiguration:
 class ContainersManagerConfiguration:
     def __init__(self,
                  models=None,
-                 available_gpus=None,
+                 containers=None,
                  actuator_port=None,
                  init_quota=None,
-                 containers=None,
                  json_data=None):
         if json_data:
             self.__dict__ = json_data
         else:
             self.models = models
-            self.available_gpus = available_gpus
+            self.containers = containers
             self.actuator_port = actuator_port
             self.init_quota = init_quota
-            self.containers = containers
         self.container_list_endpoint = "/containers"
 
 

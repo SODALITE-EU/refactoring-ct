@@ -80,9 +80,42 @@ def get_k8s_service():
         return {"error": "k8s service not defined"}, 400
 
 
-@app.route('/start', methods=['POST'])
+def generate_k8s_deployment_service():
+    global tfs_config, k8s_containers, k8s_deployment, k8s_service
+    # generate TF serving config file
+    logging.info("generating tf serving config...")
+    tfs_config = ConfigurationsGenerator.tf_config_generator(configs["k8s_config"].models,
+                                                             configs["k8s_config"].tfs_models_path)
+
+    # generate K8s deployment and service
+    logging.info("generating k8s deployment and service...")
+    k8s_containers, k8s_deployment, k8s_service = ConfigurationsGenerator.k8s_config_generator(
+        k8s_config=configs["k8s_config"])
+
+    k8s_deployment_yml, _ = get_k8s_deployment()
+    k8s_service_yml, _ = get_k8s_service()
+    logging.info(k8s_deployment_yml)
+    logging.info(k8s_service_yml)
+
+
+@app.route('/deployment', methods=['POST'])
 def k8s_apply():
-    global status, config, containers, k8s_deployment, k8s_service, k8s_containers
+    global status, configs, containers
+
+    # set deployment config
+    data = request.get_json()
+    configs["k8s_config"].initial_replicas = data["initial_replicas"]
+    configs["k8s_config"].models = data["models"]
+    configs["k8s_config"].available_gpus = data["available_gpus"]
+    configs["k8s_config"].tfs_image = data["tfs_image"]
+    configs["k8s_config"].tfs_models_url = data["tfs_models_url"]
+    if "k8s_api" in data:
+        configs["k8s_config"].k8s_api = data["k8s_api"]
+    if "k8s_api_token" in data:
+        configs["k8s_config"].k8s_api_token = data["k8s_api_token"]
+    configs["containers_manager"].models = data["models"]
+
+    generate_k8s_deployment_service()
 
     if k8s_deployment and k8s_service and k8s_containers:
         # apply k8s deployment
@@ -161,6 +194,9 @@ def k8s_apply():
         logging.info("+ %d GPU containers, not linked yet", len(list(filter(lambda m: m.device == Device.GPU, containers))))
         logging.info("containers: " + str([c.to_json() for c in containers]))
 
+        # update containers
+        configs["containers_manager"].containers = [c.to_json() for c in containers]
+
         # configure and start components
         status = "configuring components"
         logging.info(status)
@@ -180,8 +216,6 @@ def k8s_apply():
 
 def configure_components():
     global status
-    # update containers
-    configs["containers_manager"].containers = [c.to_json() for c in containers]
 
     for component in ["containers_manager", "requests_store", "dispatcher", "controller"]:
         status = "config " + component
@@ -253,29 +287,21 @@ def configure():
 
     configs = {}
     # orchestrator configuration
-    configs["orchestrator"] = OrchestratorConfiguration(containers_manager=data["config"]["containers_manager"],
-                                                        requests_store=data["config"]["requests_store"],
-                                                        dispatcher=data["config"]["dispatcher"],
-                                                        controller=data["config"]["controller"])
+    configs["orchestrator"] = OrchestratorConfiguration(containers_manager=data["orchestrator"]["containers_manager"],
+                                                        requests_store=data["orchestrator"]["requests_store"],
+                                                        dispatcher=data["orchestrator"]["dispatcher"],
+                                                        controller=data["orchestrator"]["controller"])
 
     # deployment configuration
-    configs["k8s_config"] = K8sConfiguration(initial_replicas=data["config"]["workers"],
-                                             models=data["config"]["models"],
-                                             available_gpus=data["config"]["available_gpus"],
-                                             actuator_image=data["config"]["actuator_image"],
-                                             actuator_port=data["config"]["actuator_port"],
-                                             k8s_service_type=data["config"]["k8s_service_type"],
-                                             k8s_image_pull_policy=data["config"]["k8s_image_pull_policy"],
-                                             k8s_host_network=data["config"]["k8s_host_network"],
-                                             tfs_image=data["config"]["tfs_image"],
-                                             tfs_init_image=data["config"]["tfs_init_image"],
-                                             tfs_config_endpoint=data["config"]["tfs_config_endpoint"],
-                                             tfs_models_url=data["config"]["tfs_models_url"])
+    configs["k8s_config"] = K8sConfiguration(actuator_image=data["orchestrator"]["actuator_image"],
+                                             actuator_port=data["orchestrator"]["actuator_port"],
+                                             k8s_service_type=data["orchestrator"]["k8s_service_type"],
+                                             k8s_image_pull_policy=data["orchestrator"]["k8s_image_pull_policy"],
+                                             k8s_host_network=data["orchestrator"]["k8s_host_network"],
+                                             tfs_init_image=data["orchestrator"]["tfs_init_image"],
+                                             tfs_config_endpoint=data["orchestrator"]["tfs_config_endpoint"])
 
-    # components configuration
-    configs["containers_manager"] = ContainersManagerConfiguration(models=configs["k8s_config"].models,
-                                                                   available_gpus=configs["k8s_config"].available_gpus,
-                                                                   actuator_port=configs["k8s_config"].actuator_port,
+    configs["containers_manager"] = ContainersManagerConfiguration(actuator_port=configs["k8s_config"].actuator_port,
                                                                    init_quota=data["containers_manager"]["init_quota"])
 
     configs["requests_store"] = RequestsStoreConfiguration(containers_manager=configs["orchestrator"].containers_manager)
@@ -297,20 +323,6 @@ def configure():
                                                     max_polling_threads=data["dispatcher"]["max_polling_threads"],
                                                     max_consumers_cpu=data["dispatcher"]["max_consumers_cpu"],
                                                     max_consumers_gpu=data["dispatcher"]["max_consumers_gpu"])
-
-    # generate TF serving config file
-    logging.info("generating tf serving config...")
-    tfs_config = ConfigurationsGenerator.tf_config_generator(configs["k8s_config"].models,
-                                                             configs["k8s_config"].tfs_models_path)
-
-    # generate K8s deployment and service
-    logging.info("generating k8s deployment and service...")
-    k8s_containers, k8s_deployment, k8s_service = ConfigurationsGenerator.k8s_config_generator(k8s_config=configs["k8s_config"])
-
-    k8s_deployment_yml, _ = get_k8s_deployment()
-    k8s_service_yml, _ = get_k8s_service()
-    logging.info(k8s_deployment_yml)
-    logging.info(k8s_service_yml)
 
     status = "configured"
     logging.info(status)

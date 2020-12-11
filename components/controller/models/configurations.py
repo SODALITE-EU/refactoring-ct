@@ -32,6 +32,7 @@ class K8sConfiguration:
                  k8s_service_type=None,
                  k8s_image_pull_policy=None,
                  k8s_host_network=None,
+                 tfs_image=None,
                  tfs_init_image=None,
                  tfs_config_endpoint=None,
                  tfs_models_url=None,
@@ -47,6 +48,7 @@ class K8sConfiguration:
             self.k8s_service_type = k8s_service_type
             self.k8s_image_pull_policy = k8s_image_pull_policy
             self.k8s_host_network = k8s_host_network
+            self.tfs_image = tfs_image
             self.tfs_models_path = "/home/models/"
             self.tfs_config_file_name = self.tfs_models_path + "tf_serving_models.config"
             self.tfs_init_image = tfs_init_image

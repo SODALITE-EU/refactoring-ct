@@ -267,6 +267,7 @@ def configure():
                                              k8s_service_type=data["config"]["k8s_service_type"],
                                              k8s_image_pull_policy=data["config"]["k8s_image_pull_policy"],
                                              k8s_host_network=data["config"]["k8s_host_network"],
+                                             tfs_image=data["config"]["tfs_image"],
                                              tfs_init_image=data["config"]["tfs_init_image"],
                                              tfs_config_endpoint=data["config"]["tfs_config_endpoint"],
                                              tfs_models_url=data["config"]["tfs_models_url"])

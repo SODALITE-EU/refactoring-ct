@@ -43,6 +43,7 @@ Content-Type: application/json
     "dispatcher": "http://localhost:8000",
     "controller": "http://localhost:5003",
     "actuator_image": "nodemanager-actuator:local",
+    "tfs_image": "tensorflow/serving:latest",
     "tfs_init_image": "nodemanager-tfs-init:local",
     "tfs_config_endpoint": "http://host.minikube.internal:5000/configuration/tfs",
     "tfs_models_url": "https://github.com/NicholasRasi/NodeManagerTestModels/archive/v1.tar.gz",

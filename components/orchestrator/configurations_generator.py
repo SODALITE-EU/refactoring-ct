@@ -60,7 +60,7 @@ class ConfigurationsGenerator:
         for i, model in enumerate(ConfigurationsGenerator.model_list(k8s_config.models)):
             container_name = "nodemanager-rest-cpu-" + str(i + 1)
             k8s_container = client.V1Container(name=container_name,
-                                               image="tensorflow/serving:latest",
+                                               image=k8s_config.tfs_image,
                                                args=["--model_config_file=" + k8s_config.tfs_config_file_name,
                                                      "--rest_api_port=" + str(base_port)],
                                                ports=[client.V1ContainerPort(container_port=base_port)],
@@ -81,7 +81,7 @@ class ConfigurationsGenerator:
         for gpu in range(k8s_config.available_gpus):
             container_name = "nodemanager-rest-gpu-" + str(gpu + 1)
             k8s_container = client.V1Container(name=container_name,
-                                               image="tensorflow/serving:latest-gpu",
+                                               image=k8s_config.tfs_image + "-gpu",
                                                args=["--model_config_file=" + k8s_config.tfs_config_file_name,
                                                      "--rest_api_port=" + str(base_port)],
                                                ports=[client.V1ContainerPort(container_port=base_port)],

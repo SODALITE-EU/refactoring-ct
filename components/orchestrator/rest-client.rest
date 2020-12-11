@@ -76,40 +76,6 @@ Content-Type: application/json
       "profiled_rt": 0.15
     }
   ],
-  "k8s_api_configuration": {
-    "apiVersion": "v1",
-    "clusters": [
-      {
-        "cluster": {
-          "certificate-authority": "/home/nik/.minikube/ca.crt",
-          "server": "https://192.168.49.2:8443"
-        },
-        "name": "minikube"
-      }
-    ],
-    "contexts": [
-      {
-        "context": {
-          "cluster": "minikube",
-          "namespace": "default",
-          "user": "minikube"
-        },
-        "name": "minikube"
-      }
-    ],
-    "current-context": "minikube",
-    "kind": "Config",
-    "preferences": {},
-    "users": [
-      {
-        "name": "minikube",
-        "user": {
-          "client-certificate": "/home/nik/.minikube/profiles/minikube/client.crt",
-          "client-key": "/home/nik/.minikube/profiles/minikube/client.key"
-        }
-      }
-    ]
-  },
   "initial_replicas": 1,
   "available_gpus": 2,
   "tfs_image": "tensorflow/serving:latest",

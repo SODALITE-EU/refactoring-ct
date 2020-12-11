@@ -104,22 +104,27 @@ def k8s_apply():
 
     # set deployment config
     data = request.get_json()
+    configs["containers_manager"].models = data["models"]
     configs["k8s_config"].initial_replicas = data["initial_replicas"]
     configs["k8s_config"].models = data["models"]
     configs["k8s_config"].available_gpus = data["available_gpus"]
     configs["k8s_config"].tfs_image = data["tfs_image"]
     configs["k8s_config"].tfs_models_url = data["tfs_models_url"]
-    if "k8s_api" in data:
-        configs["k8s_config"].k8s_api = data["k8s_api"]
-    if "k8s_api_token" in data:
-        configs["k8s_config"].k8s_api_token = data["k8s_api_token"]
-    configs["containers_manager"].models = data["models"]
+    if "k8s_api_configuration" in data:
+        configs["k8s_config"].k8s_api_configuration = data["k8s_api_configuration"]
 
     generate_k8s_deployment_service()
 
     if k8s_deployment and k8s_service and k8s_containers:
+        # configure K8s API
+        if configs["k8s_config"].k8s_api_configuration:
+            logging.info("K8s API using config: " + str(configs["k8s_config"].k8s_api_configuration))
+            config_k8s_api.load_kube_config_from_dict(configs["k8s_config"].k8s_api_configuration)
+        else:
+            logging.info("K8s API using default config")
+            config_k8s_api.load_kube_config()
+
         # apply k8s deployment
-        config_k8s_api.load_kube_config()
         apps_api = client_k8s_api.AppsV1Api()
         try:
             resp = apps_api.create_namespaced_deployment(namespace="default", body=k8s_deployment)

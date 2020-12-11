@@ -29,8 +29,7 @@ class K8sConfiguration:
                  available_gpus=None,
                  actuator_image=None,
                  actuator_port=None,
-                 k8s_api=None,
-                 k8s_api_token=None,
+                 k8s_api_configuration=None,
                  k8s_service_type=None,
                  k8s_image_pull_policy=None,
                  k8s_host_network=None,
@@ -47,8 +46,7 @@ class K8sConfiguration:
             self.available_gpus = available_gpus
             self.actuator_image = actuator_image
             self.actuator_port = actuator_port
-            self.k8s_api = k8s_api
-            self.k8s_api_token = k8s_api_token
+            self.k8s_api_configuration = k8s_api_configuration
             self.k8s_service_type = k8s_service_type
             self.k8s_image_pull_policy = k8s_image_pull_policy
             self.k8s_host_network = k8s_host_network

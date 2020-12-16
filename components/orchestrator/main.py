@@ -1,6 +1,9 @@
 import json
 import logging
+import tarfile
 import time
+import uuid
+import os
 
 import requests
 from flask import request
@@ -26,6 +29,7 @@ k8s_containers = None
 k8s_deployment = None
 k8s_service = None
 containers = None
+MODELS_DIR = "tfs_models/"
 
 
 def check_write(res):
@@ -90,12 +94,19 @@ def generate_k8s_deployment_service():
     # generate K8s deployment and service
     logging.info("generating k8s deployment and service...")
     k8s_containers, k8s_deployment, k8s_service = ConfigurationsGenerator.k8s_config_generator(
-        k8s_config=configs["k8s_config"])
+        k8s_config=configs["k8s_config"], logging=logging)
 
     k8s_deployment_yml, _ = get_k8s_deployment()
     k8s_service_yml, _ = get_k8s_service()
     logging.info(k8s_deployment_yml)
     logging.info(k8s_service_yml)
+
+
+def append_models_uuid(models):
+    logging.info("appending uuid to models names")
+    for model in models:
+        # append uuid
+        model["name"] = model["name"].replace("_", "-") + "-" + str(uuid.uuid4())
 
 
 @app.route('/deployment', methods=['POST'])
@@ -104,12 +115,15 @@ def k8s_apply():
 
     # set deployment config
     data = request.get_json()
+    append_models_uuid(data["models"])
     configs["containers_manager"].models = data["models"]
-    configs["k8s_config"].initial_replicas = data["initial_replicas"]
+    # take the first initial_replicas
+    configs["k8s_config"].initial_replicas = data["models"][0]["initial_replicas"]
     configs["k8s_config"].models = data["models"]
+    logging.info("models: " + str(configs["k8s_config"].models))
     configs["k8s_config"].available_gpus = data["available_gpus"]
     configs["k8s_config"].tfs_image = data["tfs_image"]
-    configs["k8s_config"].tfs_models_url = data["tfs_models_url"]
+    #configs["k8s_config"].tfs_models_url = data["tfs_models_url"]
     if "k8s_api_configuration" in data:
         configs["k8s_config"].k8s_api_configuration = data["k8s_api_configuration"]
 

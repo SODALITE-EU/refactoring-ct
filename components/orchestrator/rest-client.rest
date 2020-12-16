@@ -28,6 +28,7 @@ Content-Type: application/json
     "controller": "http://localhost:5003",
     "tfs_init_image": "nodemanager-tfs-init:local",
     "tfs_config_endpoint": "http://host.minikube.internal:5000/configuration/tfs",
+    "tfs_models_url": "http://host.minikube.internal:5000/configuration/tfs",
     "k8s_service_type": "NodePort",
     "k8s_image_pull_policy": "Never",
     "k8s_host_network": true
@@ -62,22 +63,24 @@ Content-Type: application/json
 {
   "models": [
     {
-      "name": "skyline_extraction",
+      "name": "skyline-extraction",
       "version": 1,
       "sla": 0.3,
       "alpha": 0.5,
-      "profiled_rt": 0.15
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelSkylineExtraction/archive/v1.tar.gz",
+      "initial_replicas": 1
     },
     {
-      "name": "half_plus_two",
+      "name": "half-plus-two",
       "version": 1,
       "sla": 0.4,
       "alpha": 0.5,
-      "profiled_rt": 0.15
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelHalfPlusTwo/archive/v1.tar.gz",
+      "initial_replicas": 1
     }
   ],
-  "initial_replicas": 1,
   "available_gpus": 2,
-  "tfs_image": "tensorflow/serving:latest",
-  "tfs_models_url": "https://github.com/NicholasRasi/NodeManagerTestModels/archive/v1.tar.gz"
+  "tfs_image": "tensorflow/serving:latest"
 }

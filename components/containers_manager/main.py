@@ -129,12 +129,15 @@ def configure():
     if config.models:
         logging.info("Found %d models from configuration", len(config.models))
         for model in config.models:
+            m = Model(name=model["name"],
+                      version=model["version"],
+                      sla=model["sla"],
+                      alpha=model["alpha"],
+                      tfs_model_url=model["tfs_model_url"],
+                      initial_replicas=model["initial_replicas"])
             if "profiled_rt" in model:
-                models.append(
-                    Model(model["name"], model["version"], model["sla"], model["alpha"], model["profiled_rt"]))
-            else:
-                models.append(
-                    Model(model["name"], model["version"], model["sla"], model["alpha"]))
+                m.profiled_rt = model["profiled_rt"]
+            models.append(m)
 
     logging.info("+ %d models", len(models))
 

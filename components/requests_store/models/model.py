@@ -1,3 +1,5 @@
+import uuid
+
 class Model:
 
     def __init__(self,
@@ -6,6 +8,8 @@ class Model:
                  sla: float = None,
                  alpha: float = 1,
                  profiled_rt: float = None,
+                 tfs_model_url: str = None,
+                 initial_replicas: int = None,
                  json_data=None):
         if json_data:
             self.__dict__ = json_data
@@ -15,6 +19,8 @@ class Model:
             self.sla = sla
             self.alpha = alpha
             self.profiled_rt = profiled_rt
+            self.tfs_model_url = tfs_model_url
+            self.initial_replicas = initial_replicas
 
     def to_json(self):
         return {

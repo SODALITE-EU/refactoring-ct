@@ -10,12 +10,15 @@ class ConfigurationsGenerator:
     def model_list(models_dict):
         models = []
         for model in models_dict:
+            m = Model(name=model["name"],
+                      version=model["version"],
+                      sla=model["sla"],
+                      alpha=model["alpha"],
+                      tfs_model_url=model["tfs_model_url"],
+                      initial_replicas=model["initial_replicas"])
             if "profiled_rt" in model:
-                models.append(
-                    Model(model["name"], model["version"], model["sla"], model["alpha"], model["profiled_rt"]))
-            else:
-                models.append(
-                    Model(model["name"], model["version"], model["sla"], model["alpha"]))
+                m.profiled_rt = model["profiled_rt"]
+            models.append(m)
         return models
 
     # generate a TF config file from a list of models
@@ -32,7 +35,7 @@ class ConfigurationsGenerator:
 
     # generate a K8s deployment and service
     @staticmethod
-    def k8s_config_generator(k8s_config: K8sConfiguration):
+    def k8s_config_generator(k8s_config: K8sConfiguration, logging):
         # generate deployment
         containers, deployment = ConfigurationsGenerator.k8s_deployment_generator(k8s_config)
         # generate service
@@ -109,13 +112,16 @@ class ConfigurationsGenerator:
         affinity = client.V1Affinity(pod_anti_affinity=client.V1PodAffinity(required_during_scheduling_ignored_during_execution=[client.V1PodAffinityTerm(topology_key="kubernetes.io/hostname")]))
 
         # init containers
-        init_containers = [client.V1Container(name="tfs-init",
-                                              image=k8s_config.tfs_init_image,
-                                              args=["-c", k8s_config.tfs_config_endpoint,
-                                                    "-m", k8s_config.tfs_models_url],
-                                              image_pull_policy=k8s_config.k8s_image_pull_policy,
-                                              volume_mounts=[client.V1VolumeMount(name="shared-models",
-                                                                                  mount_path=k8s_config.tfs_models_path)])]
+        init_containers = []
+        for i, model in enumerate(ConfigurationsGenerator.model_list(k8s_config.models)):
+            container_name = "tfs-init-" + str(i + 1)
+            init_containers.append(client.V1Container(name=container_name,
+                                                      image=k8s_config.tfs_init_image,
+                                                      args=["-c", k8s_config.tfs_config_endpoint,
+                                                            "-m", model.tfs_model_url],
+                                                      image_pull_policy=k8s_config.k8s_image_pull_policy,
+                                                      volume_mounts=[client.V1VolumeMount(name="shared-models",
+                                                                                          mount_path=k8s_config.tfs_models_path)]))
 
         # add pod spec
         pod_spec = client.V1PodSpec(containers=k8s_containers,

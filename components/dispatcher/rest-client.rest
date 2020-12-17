@@ -3,12 +3,10 @@ GET http://{{host}}:{{port}}/
 Accept: application/json
 
 ### Post a predict to "half_plus_two"
-# curl -d '{"model": "half_plus_two", "version": 1, "instances": [1.0, 2.0, 5.0]}' -X POST -H "Content-Type: application/json" http://{{host}}:{{port}}/predict
-POST http://{{host}}:{{port}}/predict
+POST http://{{host}}:{{port}}/predict/half-plus-two-637455ee-4326-4d7e-9c02-f28aef954344
 Content-Type: application/json
 
 {
-  "model": "half_plus_two",
   "version": 1,
   "instances": [1.0, 2.0, 3.0]
 }

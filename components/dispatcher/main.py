@@ -35,8 +35,8 @@ def get_status():
     return {"status": status}
 
 
-@app.route('/predict', methods=['POST'])
-def predict():
+@app.route('/predict/<model>', methods=['POST'])
+def predict(model):
     # check if the component is active and the configuration file was loaded (lazy-load)
     if not active and not configure():
         return {'error': 'component not configured'}
@@ -45,18 +45,18 @@ def predict():
     data = request.get_json()
     if not data:
         return {'error': 'input not specified'}
-    elif 'model' not in data.keys():
-        return {'error': 'key model not specified'}
+    elif not model:
+        return {'error': 'model not specified'}
     elif 'version' not in data.keys():
         return {'error': 'key version not specified'}
     elif 'instances' not in data.keys():
         return {'error': 'key instances not specified'}
 
-    # app.logger.info("IN - REQ %s/V%s %s", data["model"], data["version"], data["instances"])
+    # app.logger.info("IN - REQ %s/V%s %s", model, data["version"], data["instances"])
 
     # Queue and log incoming request
-    req = Req(data["model"], data["version"], data["instances"])
-    reqs_queues[data["model"]].put(req)
+    req = Req(model, data["version"], data["instances"])
+    reqs_queues[model].put(req)
     log_queue.put(req)
 
     # Forward 200

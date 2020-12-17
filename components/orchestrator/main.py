@@ -115,6 +115,8 @@ def k8s_apply():
 
     # set deployment config
     data = request.get_json()
+    logging.info(type(data["models"]))
+    # append uuid to model name
     append_models_uuid(data["models"])
     configs["containers_manager"].models = data["models"]
     # take the first initial_replicas
@@ -123,7 +125,6 @@ def k8s_apply():
     logging.info("models: " + str(configs["k8s_config"].models))
     configs["k8s_config"].available_gpus = data["available_gpus"]
     configs["k8s_config"].tfs_image = data["tfs_image"]
-    #configs["k8s_config"].tfs_models_url = data["tfs_models_url"]
     if "k8s_api_configuration" in data:
         configs["k8s_config"].k8s_api_configuration = data["k8s_api_configuration"]
 
@@ -227,7 +228,9 @@ def k8s_apply():
             if started:
                 status = "active"
                 logging.info(status)
-                return {"result": "ok"}, 200
+                endpoints = {m["name"][:-37]: configs["orchestrator"].dispatcher + "/predict/" + m["name"]
+                             for m in configs["k8s_config"].models}
+                return {"endpoints": endpoints}, 200
         return {"result": "error configuration"}, 400
     else:
         return {"result": "not configured yet"}, 400

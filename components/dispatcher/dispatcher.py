@@ -98,5 +98,5 @@ class Dispatcher:
             return
         except Exception as e:
             self.logger.warning("EXCEPTION %s", e)
-            req.set_error(400 + "\n" + str(e))
+            req.set_error(str(400) + "\n" + str(e))
             return

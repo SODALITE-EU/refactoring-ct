@@ -3,7 +3,7 @@ GET http://{{host}}:{{port}}/
 Accept: application/json
 
 ### Post a predict to "half_plus_two"
-POST http://{{host}}:{{port}}/predict/half-plus-two-637455ee-4326-4d7e-9c02-f28aef954344
+POST http://{{host}}:{{port}}/predict/half-plus-two-9f1a230f-1438-4336-8cd5-549a50a378b5
 Content-Type: application/json
 
 {
@@ -12,21 +12,19 @@ Content-Type: application/json
 }
 
 ###
-POST http://{{host}}:{{port}}/predict
+POST http://{{host}}:{{port}}/predict/half_plus_three
 Content-Type: application/json
 
 {
-  "model": "half_plus_three",
   "version": 1,
   "instances": [1.0, 2.0, 3.0]
 }
 
 ### Post a predict to "resnet_NHWC"
-POST http://{{host}}:{{port}}/predict
+POST http://{{host}}:{{port}}/predict/resnet_NHWC
 Content-Type: application/json
 
 {
-  "model": "resnet_NHWC",
   "version": 1,
   "instances": [{"b64": "{{test_img}}"}]
 }

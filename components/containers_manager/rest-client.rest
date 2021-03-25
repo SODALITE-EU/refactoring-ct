@@ -20,7 +20,7 @@ Content-Type: application/json
 }
 
 ### Get the containers for a model
-GET http://{{host}}:{{port}}/models/half_plus_two/containers
+GET http://{{host}}:{{port}}/models/half-plus-two-ef56cad3-6fd5-47be-83bd-a36439d0d2ea/containers
 Accept: application/json
 
 ### Get the models by node

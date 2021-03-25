@@ -112,7 +112,7 @@ class ControllerConfiguration:
 
         self.models_endpoint = self.containers_manager + "/models"
         self.containers_endpoint = self.containers_manager + "/containers"
-        self.requests_endpoint = self.requests_store
+        self.requests_endpoint = self.requests_store + "/requests"
 
 
 class DispatcherConfiguration:

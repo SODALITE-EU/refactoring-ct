@@ -6,6 +6,8 @@ from flask_cors import CORS
 from controller_manager import ControllerManager
 from controller_manager_rules import ControllerManagerRules
 from models.configurations import ControllerConfiguration
+import datetime
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -22,13 +24,17 @@ def get_status():
 
 @app.route('/logs', methods=['GET'])
 def get_logs():
-    return jsonify(controller.get_logs())
+    if controller:
+        return jsonify(controller.get_logs())
+    else:
+        return {}, 200
 
 
 def control():
     app.logger.info("Controller updating...")
     if config.dry_run:
         app.logger.info("updating (dry-run)")
+        controller.logs.append({"ts": time.time(), "date": str(datetime.datetime.now()), "msg": "updating (dry-run)"})
     else:
         controller.update()
     app.logger.info("Controller updated, waiting for next clock...")
@@ -60,6 +66,8 @@ def configure():
 
     status = "configured"
     logging.info(status)
+
+    logging.info("configuration: " + str(config.__dict__))
 
     return {"result": "ok"}, 200
 

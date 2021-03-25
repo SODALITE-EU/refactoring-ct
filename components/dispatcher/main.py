@@ -68,8 +68,9 @@ def log_consumer():
     global config
     while True:
         payload = log_queue.get().to_json()
-        requests.post(config.requests_store_host, json=payload)
+        requests.post(config.requests_store_endpoint, json=payload)
         time.sleep(0.1)
+
 
 
 def queues_pooling(dispatcher, policy, max_consumers):
@@ -241,9 +242,12 @@ def create_app(delete_config=False):
     # logging.basicConfig(level='DEBUG', format=log_format)
 
     # delete config file
-    if delete_config and os.path.exists(config_filename):
+    if delete_config:
         logging.info("deleting config file")
-        os.remove(config_filename)
+        try:
+            os.remove(config_filename)
+        except FileNotFoundError as e:
+            logging.info("file not found")
 
     status = "inactive"
     logging.info(status)

@@ -1,13 +1,10 @@
 import json
 import logging
-import tarfile
 import time
 import uuid
-import os
-
 import requests
 from flask import request
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
 import yaml
 from kubernetes import client as client_k8s_api
@@ -207,6 +204,7 @@ def k8s_apply():
         for node in k8s_nodes:
             for k8s_container in k8s_containers:
                 container = k8s_container
+                container.active = True
                 container.set_node(node)
                 containers.append(container)
 

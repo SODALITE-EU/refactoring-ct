@@ -1,22 +1,33 @@
 version: "3"
 services:
-  actuator:
-    build: actuator
-    ports:
-      - "5000:5000"
   containers_manager:
     build: containers_manager
+    network_mode: host
     ports:
       - "5001:5001"
   requests_store:
     build: requests_store
+    network_mode: host
     ports:
       - "5002:5002"
   controller:
     build: controller
+    network_mode: host
     ports:
       - "5003:5003"
   dispatcher:
     build: dispatcher
+    network_mode: host
     ports:
       - "8000:8000"
+  orchestrator:
+    build: orchestrator
+    network_mode: host
+    ports:
+      - "5000:5000"
+    volumes:
+      - /home/nik/.minikube/:/home/root/.minikube/
+  dashboard:
+    build: dashboard
+    ports:
+      - "8080:8080"

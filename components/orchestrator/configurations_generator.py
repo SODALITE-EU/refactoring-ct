@@ -117,7 +117,9 @@ class ConfigurationsGenerator:
             container_name = "tfs-init-" + str(i + 1)
             init_containers.append(client.V1Container(name=container_name,
                                                       image=k8s_config.tfs_init_image,
-                                                      args=["-c", k8s_config.tfs_config_endpoint,
+                                                      args=["-f", "/home/models/",
+                                                            "-d", "/home/models/" + model.name,
+                                                            "-c", k8s_config.tfs_config_endpoint,
                                                             "-m", model.tfs_model_url],
                                                       image_pull_policy=k8s_config.k8s_image_pull_policy,
                                                       volume_mounts=[client.V1VolumeMount(name="shared-models",

@@ -2,27 +2,22 @@ version: "3"
 services:
   containers_manager:
     image: sodaliteh2020/nodemanager_containers_manager
-    network_mode: host
     ports:
       - "5001:5001"
   requests_store:
     image: sodaliteh2020/nodemanager_requests_store
-    network_mode: host
     ports:
       - "5002:5002"
   controller:
     image: sodaliteh2020/nodemanager_controller
-    network_mode: host
     ports:
       - "5003:5003"
   dispatcher:
     image: sodaliteh2020/nodemanager_dispatcher
-    network_mode: host
     ports:
       - "8000:8000"
   orchestrator:
     image: sodaliteh2020/nodemanager_orchestrator
-    network_mode: host
     ports:
       - "5000:5000"
   dashboard:

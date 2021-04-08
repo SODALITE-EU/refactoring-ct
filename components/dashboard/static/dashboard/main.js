@@ -1,9 +1,11 @@
-host = "localhost";
-host_orchestrator = "http://" + host + ":5000";
-host_containers = "http://" + host + ":5001";
-host_requests = "http://" + host + ":5002";
-host_controller = "http://" + host + ":5003";
-host_dispatcher = "http://" + host + ":8000";
+url = window.location;
+host = url.hostname;
+protocol = url.protocol
+host_orchestrator = protocol + "//" + host + ":5000";
+host_containers = protocol + "//" + host + ":5001";
+host_requests = protocol + "//" + host + ":5002";
+host_controller = protocol + "//" + host + ":5003";
+host_dispatcher = protocol + "//" + host + ":8000";
 
 function deviceFormatter(data) {
   return data === 0 ? "CPU" : "GPU";

@@ -3,7 +3,7 @@ GET http://{{host}}:{{port}}/
 Accept: application/json
 
 ### Post a predict to "half_plus_two"
-POST http://{{host}}:{{port}}/predict/half-plus-two-9f1a230f-1438-4336-8cd5-549a50a378b5
+POST http://{{host}}:{{port}}/predict/half-plus-two-1e2666fb-9cf0-4bf5-99fc-9a68ac3b9033
 Content-Type: application/json
 
 {

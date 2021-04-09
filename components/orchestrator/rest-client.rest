@@ -109,3 +109,105 @@ Content-Type: application/json
     ]
   }
 }
+
+### Post configuration remote K8s
+POST http://{{host}}:{{port}}/configuration
+Content-Type: application/json
+
+{
+  "orchestrator": {
+    "actuator_image": "sodaliteh2020/nodemanager_actuator:latest",
+    "actuator_port": 5000,
+    "containers_manager": "http://{{host}}:5001",
+    "requests_store": "http://{{host}}:5002",
+    "dispatcher": "http://{{host}}:8000",
+    "controller": "http://{{host}}:5003",
+    "tfs_init_image": "sodaliteh2020/nodemanager_tfs_init",
+    "tfs_config_endpoint": "http://{{host}}:5000/configuration/tfs",
+    "tfs_models_url": "http://{{host}}:5000/configuration/tfs",
+    "k8s_service_type": "NodePort",
+    "k8s_image_pull_policy": "Never",
+    "k8s_host_network": true
+  },
+  "containers_manager": {
+    "init_quota": 2
+  },
+  "controller": {
+    "min_cores":  0.1,
+    "max_cores": 2,
+    "control_period":  5,
+    "control_type":  "CT",
+    "dry_run": true
+  },
+  "dispatcher": {
+    "gpu_queues_policy": 2,
+    "max_log_consumers": 1,
+    "max_polling_threads": 1,
+    "max_consumers_cpu": 100,
+    "max_consumers_gpu": 100,
+    "verbose": 1
+  }
+}
+
+### Start remote k8s
+POST http://{{host}}:{{port}}/deployment
+Content-Type: application/json
+
+{
+  "models": [
+    {
+      "name": "half-plus-two",
+      "version": 1,
+      "sla": 0.4,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelHalfPlusTwo/archive/v1.tar.gz",
+      "initial_replicas": 1
+    },
+    {
+      "name": "skyline-extraction",
+      "version": 1,
+      "sla": 0.3,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelSkylineExtraction/archive/v1.tar.gz",
+      "initial_replicas": 1
+    }
+  ],
+  "available_gpus": 1,
+  "tfs_image": "tensorflow/serving:latest",
+  "k8s_api_configuration": {
+    "apiVersion": "v1",
+    "clusters": [
+      {
+        "cluster": {
+          "certificate-authority": "/home/root/.minikube/ca.crt",
+          "server": "http://{{k8s_host}}:8080"
+        },
+        "name": "minikube"
+      }
+    ],
+    "contexts": [
+      {
+        "context": {
+          "cluster": "minikube",
+          "namespace": "default",
+          "user": "minikube"
+        },
+        "name": "minikube"
+      }
+    ],
+    "current-context": "minikube",
+    "kind": "Config",
+    "preferences": {},
+    "users": [
+      {
+        "name": "minikube",
+        "user": {
+          "client-certificate": "/home/root/.minikube/profiles/minikube/client.crt",
+          "client-key": "/home/root/.minikube/profiles/minikube/client.key"
+        }
+      }
+    ]
+  }
+}

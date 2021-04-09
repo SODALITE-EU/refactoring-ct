@@ -26,6 +26,7 @@ k8s_containers = None
 k8s_deployment = None
 k8s_service = None
 containers = None
+endpoints = None
 MODELS_DIR = "tfs_models/"
 
 
@@ -108,7 +109,7 @@ def append_models_uuid(models):
 
 @app.route('/deployment', methods=['POST'])
 def k8s_apply():
-    global status, configs, containers
+    global status, configs, containers, endpoints
 
     # set deployment config
     data = request.get_json()
@@ -232,6 +233,11 @@ def k8s_apply():
         return {"result": "error configuration"}, 400
     else:
         return {"result": "not configured yet"}, 400
+
+
+@app.route('/apps', methods=['GET'])
+def get_apps_endpoints():
+    return {"endpoints": endpoints}, 200
 
 
 def configure_components():

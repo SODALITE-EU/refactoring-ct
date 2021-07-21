@@ -6,20 +6,12 @@ Accept: application/json
 GET http://{{host}}:{{port}}/requests
 Accept: application/json
 
-### Get the requests to a node
-GET http://{{host}}:{{port}}/requests/192.168.99.103
-Accept: application/json
-
 ### Delete the requests
 DELETE http://{{host}}:{{port}}/requests
 Accept: application/json
 
-### Get the metrics by model
-GET http://{{host}}:{{port}}/metrics/model
-Accept: application/json
-
-### Get the metrics by container by model
-GET http://{{host}}:{{port}}/metrics/container/model
+### Get the requests to a node
+GET http://{{host}}:{{port}}/requests/192.168.99.103
 Accept: application/json
 
 ### Get the metrics by model from ts
@@ -30,29 +22,32 @@ Accept: application/json
 GET http://{{host}}:{{port}}/metrics/container?from_ts=0
 Accept: application/json
 
+### Get the metrics by container by model
+GET http://{{host}}:{{port}}/metrics/container/model?from_ts=0
+Accept: application/json
+
+### Get the created requests by container by model
+GET http://{{host}}:{{port}}/metrics/container/model/created?from_ts=0
+Accept: application/json
+
 ### Post a request
 POST http://{{host}}:{{port}}/requests
 Content-Type: application/json
 
 {
-  "id": "id123",
-  "model": "half_plus_two",
-  "version": 1,
-  "instances": [
-    1.0,
-    2.0,
-    3.0
-  ],
-  "node": "192.168.99.103",
   "container": "tfserving-gpu-0",
-  "ts_in": 100000,
-  "ts_out": 100300,
+  "container_id": "container1",
+  "device": 1,
+  "id": "12345678-1234-5678-1234-567812345612",
+  "model": "half_plus_three",
+  "node": "192.168.99.103",
+  "process_time": null,
   "resp_time": 1.0,
-  "response": [
-    2.0,
-    3.0,
-    4.0
-  ]
+  "state": 3,
+  "ts_in": 1623142490.7088108,
+  "ts_out": 1623142490.7088110,
+  "ts_wait": null,
+  "version": 1
 }
 
 ### Post configuration

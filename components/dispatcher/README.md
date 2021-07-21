@@ -48,7 +48,7 @@ pip install -r requirements.txt
 ### Start
 ```
 gunicorn -w <num_of_workers> "main:create_app(containers_manager="<containers_manager_host>", requests_store="<requests_store_host>",
-verbose=1)"
+verbose=1, delete_config=False)"
 ```
 
 Arguments:

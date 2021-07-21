@@ -10,6 +10,8 @@ from models.controller import Controller
 
 
 class ControllerManager:
+    MAX_LOG_SIZE = 500
+
     b_c = 0.21
     d_c = 0.17
 
@@ -44,10 +46,6 @@ class ControllerManager:
         # get the models
         self.models = {json_model["name"]: Model(json_data=json_model)
                        for json_model in self.get_data(self.models_endpoint)}
-        log_str = "Loaded " + str(len(self.models)) + " models: " + str(
-            [model.name for model in self.models.values()])
-        self.logs.append({"ts": time.time(), "date": str(
-            datetime.datetime.now()), "msg": log_str})
 
         # get the containers
         self.containers = [Container(json_data=json_container)
@@ -59,10 +57,11 @@ class ControllerManager:
         for node in self.nodes:
             self.containers_on_node[node] = list(
                 filter(lambda c: c.node == node, self.containers))
-        log_str = "Containers by node: " + str(
-            [{node: [c.to_json() for c in self.containers_on_node[node]]} for node in self.containers_on_node])
-        self.logs.append({"ts": time.time(), "date": str(
-            datetime.datetime.now()), "msg": log_str})
+
+        log = {"type": "init", "models": [model.name for model in self.models.values()],
+               "logs": {"containers": [{node: [c.to_json() for c in self.containers_on_node[node]]} for node in self.containers_on_node]},
+               "ts": time.time(), "date": str(datetime.datetime.now())}
+        self.logs.append(log)
 
         # init controllers
         self.controllers = []
@@ -89,51 +88,48 @@ class ControllerManager:
         # update the models data
         self.models = {json_model["name"]: Model(json_data=json_model)
                        for json_model in self.get_data(self.models_endpoint)}
-        gpu_containers = list(
-            filter(lambda c: c.device == Device.GPU, self.containers))
+        gpu_containers = list(filter(lambda c: c.device == Device.GPU, self.containers))
 
         # get the metrics data since from_ts
         from_ts = time.time() - self.window_time
-        metrics = self.get_data(
-            self.requests_endpoint + '/metrics/container/model', {'from_ts': from_ts})
+        metrics = self.get_data(self.requests_endpoint + '/metrics/container/model', {'from_ts': from_ts})
 
-        log_str = "Got {} metrics from {}".format(
-            len(metrics), str(datetime.datetime.fromtimestamp(from_ts)))
+        log = {"type": "update",
+               "len_metrics": len(metrics),
+               "from_ts": str(datetime.datetime.fromtimestamp(from_ts)),
+               "nodes": [node for node in self.nodes],
+               "ts": time.time(),
+               "date": str(datetime.datetime.now()),
+               "logs": {}}
 
         for node in self.nodes:
-            controller_for_node = list(
-                filter(lambda c: c.container.node == node, self.controllers))
-            log_str += "<br/><strong>node: {}</strong>".format(node)
+            controller_for_node = list(filter(lambda c: c.container.node == node, self.controllers))
+            log["logs"][node] = {}
 
             for controller in controller_for_node:
+                log["logs"][node][controller.container.model] = {"metrics": {}, "control": {}}
 
                 # compute the requests completed
-                cpu_containers = list(
-                    filter(lambda c: c.device == Device.CPU and c.model == controller.container.model,
-                           self.containers_on_node[controller.container.node]))
+                cpu_containers = list(filter(lambda c: c.device == Device.CPU and c.model == controller.container.model,
+                                             self.containers_on_node[controller.container.node]))
 
                 reqs_gpus = []
                 reqs_cpus = []
                 for gpu_container in gpu_containers:
-                    reqs_gpus.append(
-                        metrics[gpu_container.container_id][controller.container.model])
+                    reqs_gpus.append(metrics[gpu_container.container_id][controller.container.model])
                 for cpu_container in cpu_containers:
                     # there should be only one container for CPU for a model
-                    reqs_cpus.append(
-                        metrics[cpu_container.container_id][controller.container.model])
+                    reqs_cpus.append(metrics[cpu_container.container_id][controller.container.model])
 
                 reqs_created_gpus = sum(map(lambda m: m["created"], reqs_gpus))
                 reqs_created_cpus = sum(map(lambda m: m["created"], reqs_cpus))
-                reqs_completed_gpus = sum(
-                    map(lambda m: m["completed"], reqs_gpus))
-                reqs_completed_cpus = sum(
-                    map(lambda m: m["completed"], reqs_cpus))
+                reqs_completed_gpus = sum(map(lambda m: m["completed"], reqs_gpus))
+                reqs_completed_cpus = sum(map(lambda m: m["completed"], reqs_cpus))
                 reqs_rt_gpus = self.mean(map(lambda m: m["avg"], reqs_gpus))
                 reqs_rt_cpus = self.mean(map(lambda m: m["avg"], reqs_cpus))
 
                 # apply control given models and containers
-                controller.v_sla = 1 / \
-                    (self.models[controller.container.model].sla)
+                controller.v_sla = 1 / (self.models[controller.container.model].sla)
 
                 # check if there are requests for the model
                 if reqs_completed_cpus + reqs_created_cpus > 0:
@@ -154,42 +150,39 @@ class ControllerManager:
                     controller.v_o_cpu = controller.v_sla
                     controller.gpu_overperforming = True if controller.v_o_cpu <= 0 else False
                     controller.e = float(controller.v_o_cpu - controller.v_cpu)
-                    controller.xc = float(
-                        controller.xc_prec + self.b_c * controller.e)
+                    controller.xc = float(controller.xc_prec + self.b_c * controller.e)
                     if controller.v_o_cpu <= 0:
                         controller.nc = self.min_c
                     else:
-                        controller.nc = max(self.min_c, min(self.max_c, self.float_round(
-                            controller.xc + self.d_c * controller.e, 1)))
+                        controller.nc = max(self.min_c,
+                                            min(self.max_c,
+                                                self.float_round(controller.xc + self.d_c * controller.e, 1)))
 
                 else:
                     controller.v_gpu = 0
                     controller.v_cpu = 0
                     controller.v_o_cpu = 0
                     controller.e = 0
-                    controller.xc = float(
-                        controller.xc_prec + self.b_c * controller.e)
+                    controller.xc = float(controller.xc_prec + self.b_c * controller.e)
                     controller.nc = self.min_c
                     v_tot = None
 
-                log_str += '<br/><strong>model: {}, {} GPU containers, {} CPU containers</strong>' \
-                           '<br/>sla: {}' \
-                           '<br/>reqs completed: GPU: {}, CPU {} | ' \
-                           'created: GPU: {}, CPU {}' \
-                           '<br/>reqs rt: GPU: {:.4f}, CPU: {:.4f}'.format(controller.container.model,
-                                                                           len(gpu_containers),
-                                                                           len(cpu_containers),
-                                                                           self.models[controller.container.model].sla,
-                                                                           reqs_completed_gpus,
-                                                                           reqs_completed_cpus,
-                                                                           reqs_created_gpus,
-                                                                           reqs_created_cpus,
-                                                                           reqs_rt_gpus if reqs_rt_gpus is not None else 0,
-                                                                           reqs_rt_cpus if reqs_rt_cpus is not None else 0)
+
+                controller_metrics = {"cpu_containers": len(cpu_containers),
+                                      "gpu_containers": len(gpu_containers),
+                                      "model_sla":  self.models[controller.container.model].sla,
+                                      "reqs_com_cpus": reqs_completed_cpus,
+                                      "reqs_com_gpus": reqs_completed_gpus,
+                                      "reqs_cre_cpus": reqs_created_cpus,
+                                      "reqs_cre_gpus": reqs_created_gpus,
+                                      "reqs_rt_cpus": reqs_rt_cpus if reqs_rt_cpus is not None else 0,
+                                      "reqs_rt_gpus": reqs_rt_gpus if reqs_rt_gpus is not None else 0}
+                log["logs"][node][controller.container.model]["metrics"] = controller_metrics
 
             tot_reqs_cores = sum(map(lambda c: c.nc, controller_for_node))
-            log_str += "<br/>cores before norm: {:.2f} / {}<br/>".format(
-                tot_reqs_cores, self.max_c)
+            log["logs"][node]["cores_before_norm"] = tot_reqs_cores
+            log["logs"][node]["max_c"] = self.max_c
+
             if tot_reqs_cores > self.max_c:
                 # norm
                 for controller in controller_for_node:
@@ -197,55 +190,41 @@ class ControllerManager:
                         (controller.nc * self.max_c / tot_reqs_cores), 1)
 
             for controller in controller_for_node:
-                controller.xc_prec = float(
-                    controller.nc - self.b_c * controller.e)
+                controller.xc_prec = float(controller.nc - self.b_c * controller.e)
 
             # log controllers
             for controller in controller_for_node:
-                log_str += "controller for {}:<ul>" \
-                           "<li>cores: {:.2f}</li>" \
-                           "<li>v_sla: {:.2f}</li>" \
-                           "<li>v_gpu: {:.2f}</li>" \
-                           "<li>v_cpu: {:.2f}</li>" \
-                           "<li>v_o_cpu: {:.2f}</li>" \
-                           "<li>e: {:.2f}</li>" \
-                           "<li>xc : {:.2f}</li>" \
-                           "</ul>".format(controller.container.model,
-                                          controller.nc,
-                                          controller.v_sla,
-                                          controller.v_gpu,
-                                          controller.v_cpu,
-                                          controller.v_o_cpu,
-                                          controller.e,
-                                          controller.xc)
-            tot_reqs_cores = sum(map(lambda c: c.nc, controller_for_node))
-            log_str += "<strong>total cores: {:.2f} / {}</strong>".format(
-                tot_reqs_cores, self.max_c)
+                control_model = {"nc": controller.nc,
+                                 "v_sla": controller.v_sla,
+                                 "v_cpu": controller.v_cpu,
+                                 "v_gpu": controller.v_gpu,
+                                 "v_o_cpu": controller.v_o_cpu,
+                                 "e": controller.e,
+                                 "xc": controller.xc}
+                log["logs"][node][controller.container.model]["control"] = control_model
 
+
+            tot_reqs_cores = sum(map(lambda c: c.nc, controller_for_node))
+            log["logs"][node]["tot_req_core"] = tot_reqs_cores
             # actuate
             for controller in controller_for_node:
                 # update container by node
-                log_str += "<br/><strong>Updating container {:.12} @ {} for {}</strong>, " \
-                           "new allocation {:.2f} / {}".format(controller.container.container_id,
-                                                               controller.container.node,
-                                                               controller.container.model,
-                                                               controller.nc,
-                                                               self.max_c)
                 # post to actuator
-                response = requests.post("http://" + node + ":" + str(
-                    self.actuator_port) + "/containers/" + controller.container.container_id,
-                    json={"cpu_quota": int(controller.nc * 100000)})
-                log_str += "<br/>actuator response: {}".format(response.text)
+                act_response = requests.post("http://" + node + ":" + str(self.actuator_port) + "/containers/" + controller.container.container_id,
+                                             json={"cpu_quota": int(controller.nc * 100000)})
                 # post con containers_manager
-                response = requests.patch(self.containers_endpoint,
-                                          json={"container_id": controller.container.container_id,
-                                                "cpu_quota": int(controller.nc * 100000)})
-                log_str += "<br/>cm response: {}".format(response.text)
+                cont_response = requests.patch(self.containers_endpoint,
+                                               json={"container_id": controller.container.container_id,
+                                                     "cpu_quota": int(controller.nc * 100000)})
 
-        self.logs.append({"ts": time.time(), "date": str(
-            datetime.datetime.now()), "msg": log_str})
+                log["logs"][node][controller.container.model]["control"]["container_id"] = controller.container.container_id
+                log["logs"][node][controller.container.model]["control"]["act_response"] = act_response.json()
+                log["logs"][node][controller.container.model]["control"]["cont_response"] = cont_response.json()
 
-    def get_logs(self):
+        self.logs.append(log)
+
+    def get_logs(self, from_ts=0.0):
+        self.logs = list(filter(lambda l: l["ts"] > float(from_ts), self.logs))
         return self.logs
 
     def get_data(self, url, data=None):
@@ -254,7 +233,10 @@ class ControllerManager:
         except Exception as e:
             logging.warning(e)
             response = []
-        return response.json()
+        if getattr(response, "json", None):
+            return response.json()
+        else:
+            return {}
 
     def to_json(self):
         pass

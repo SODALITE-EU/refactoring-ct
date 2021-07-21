@@ -1,0 +1,261 @@
+### Post configuration remote K8s
+POST http://{{host}}:{{port}}/configuration
+Content-Type: application/json
+
+{
+  "orchestrator": {
+    "actuator_image": "nichr/roma2:actuator",
+    "actuator_port": {{port}},
+    "containers_manager": "http://localhost:5001",
+    "requests_store": "http://localhost:5002",
+    "dispatcher": "http://localhost:8000",
+    "controller": "http://localhost:5003",
+    "tfs_init_image": "nichr/roma2:tfs_init",
+    "tfs_config_endpoint": "http://{{host}}:{{port}}/configuration/tfs/",
+    "k8s_service_type": "NodePort",
+    "k8s_image_pull_policy": "IfNotPresent",
+    "k8s_host_network": true,
+    "available_cpus": 1,
+    "available_gpus": 0,
+    "randomize_model_names": false
+  },
+  "containers_manager": {
+    "init_quota": 0.1
+  },
+  "controller": {
+    "min_cores":  0.1,
+    "max_cores": 4,
+    "control_period":  2,
+    "window_time": 2,
+    "control_type":  "CT2",
+    "dry_run": false
+  },
+  "dispatcher": {
+    "gpu_queues_policy": 2,
+    "max_log_consumers": 1,
+    "max_polling_threads": 1,
+    "max_consumers_cpu": 1,
+    "max_consumers_gpu": 1,
+    "verbose": 1
+  }
+}
+
+### Start Skyline - GoogLeNet
+POST http://{{host}}:{{port}}/deployment
+Content-Type: application/json
+
+{
+  "models": [
+    {
+      "name": "skyline-extraction",
+      "version": 1,
+      "sla": 0.35,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelSkylineExtraction/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 6,
+      "required_gpus": 4
+    },
+    {
+      "name": "googlenet",
+      "version": 1,
+      "sla": 0.40,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelGoogLeNet/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 6,
+      "required_gpus": 4
+    }
+  ],
+  "tfs_image": "tensorflow/serving:latest"
+}
+
+### Start ResNet
+POST http://{{host}}:{{port}}/deployment
+Content-Type: application/json
+
+{
+  "models": [
+    {
+      "name": "resnet",
+      "version": 1,
+      "sla": 0.45,
+      "alpha": 0.5,
+      "profiled_rt": 0.30,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelResNet/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 0
+    }
+  ],
+  "tfs_image": "tensorflow/serving:latest"
+}
+
+### Start VGG16
+POST http://{{host}}:{{port}}/deployment
+Content-Type: application/json
+
+{
+  "models": [
+    {
+      "name": "vgg16",
+      "version": 1,
+      "sla": 0.50,
+      "alpha": 0.5,
+      "profiled_rt": 0.60,
+      "tfs_model_url": "http://10.0.0.4/TFServingModelVGG16.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 0
+    }
+  ],
+  "tfs_image": "tensorflow/serving:latest"
+}
+
+### Start ResNet - VGG16
+POST http://{{host}}:{{port}}/deployment
+Content-Type: application/json
+
+{
+  "models": [
+    {
+      "name": "resnet",
+      "version": 1,
+      "sla": 0.45,
+      "alpha": 0.5,
+      "profiled_rt": 0.30,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelResNet/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 0
+    },
+    {
+      "name": "vgg16",
+      "version": 1,
+      "sla": 0.50,
+      "alpha": 0.5,
+      "profiled_rt": 0.60,
+      "tfs_model_url": "http://10.0.0.4/TFServingModelVGG16.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 0
+    }
+  ],
+  "tfs_image": "tensorflow/serving:latest"
+}
+
+### Start Skyline - GoogLeNet - ResNet - VGG16
+POST http://{{host}}:{{port}}/deployment
+Content-Type: application/json
+
+{
+  "models": [
+    {
+      "name": "skyline-extraction",
+      "version": 1,
+      "sla": 0.35,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelSkylineExtraction/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 6,
+      "required_gpus": 4
+    },
+    {
+      "name": "googlenet",
+      "version": 1,
+      "sla": 0.40,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelGoogLeNet/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 6,
+      "required_gpus": 4
+    },
+    {
+      "name": "resnet",
+      "version": 1,
+      "sla": 0.45,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelResNet/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 6,
+      "required_gpus": 4
+    },
+    {
+      "name": "vgg16",
+      "version": 1,
+      "sla": 0.50,
+      "alpha": 0.5,
+      "profiled_rt": 0.20,
+      "tfs_model_url": "https://makeb.it/static/roma/models/TFServingModelVGG16.tar.gz",
+      "required_cpus": 6,
+      "required_gpus": 4
+    }
+  ],
+  "tfs_image": "tensorflow/serving:latest"
+}
+
+### Start all
+POST http://{{host}}:{{port}}/deployment
+Content-Type: application/json
+
+{
+  "models": [
+    {
+      "name": "half-plus-two",
+      "version": 1,
+      "sla": 0.4,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelHalfPlusTwo/archive/v1.tar.gz",
+      "required_cpus": 2,
+      "required_gpus": 2
+    },
+    {
+      "name": "resnet",
+      "version": 1,
+      "sla": 0.3,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelResNet/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 2,
+      "required_gpus": 1
+    },
+    {
+      "name": "skyline-extraction",
+      "version": 1,
+      "sla": 0.3,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelSkylineExtraction/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 1
+    },
+    {
+      "name": "googlenet",
+      "version": 1,
+      "sla": 0.3,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://github.com/NicholasRasi/TFServingModelGoogLeNet/archive/refs/tags/v1.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 0
+    },
+    {
+      "name": "alexnet",
+      "version": 1,
+      "sla": 0.3,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://makeb.it/static/roma/models/TFServingModelAlexNet.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 0
+    },
+    {
+      "name": "vgg16",
+      "version": 1,
+      "sla": 0.3,
+      "alpha": 0.5,
+      "profiled_rt": 0.15,
+      "tfs_model_url": "https://makeb.it/static/roma/models/TFServingModelVGG16.tar.gz",
+      "required_cpus": 1,
+      "required_gpus": 0
+    }
+  ],
+  "tfs_image": "tensorflow/serving:latest"
+}

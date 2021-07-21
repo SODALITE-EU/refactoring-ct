@@ -1,0 +1,1 @@
+{"containers_manager": "http://localhost:5001", "models_endpoint": "http://localhost:5001/models", "containers_endpoint": "http://localhost:5001/containers"}

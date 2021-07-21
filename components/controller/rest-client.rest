@@ -3,7 +3,7 @@ GET http://{{host}}:{{port}}/
 Accept: application/json
 
 ### Get the logs
-GET http://{{host}}:{{port}}/logs
+GET http://{{host}}:{{port}}/logs?from_ts=1624012386.6817412
 Accept: application/json
 
 ### Post configuration

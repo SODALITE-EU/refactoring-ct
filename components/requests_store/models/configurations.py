@@ -24,8 +24,8 @@ class OrchestratorConfiguration:
 
 class K8sConfiguration:
     def __init__(self,
-                 initial_replicas=None,
                  models=None,
+                 available_cpus=None,
                  available_gpus=None,
                  actuator_image=None,
                  actuator_port=None,
@@ -33,6 +33,7 @@ class K8sConfiguration:
                  k8s_service_type=None,
                  k8s_image_pull_policy=None,
                  k8s_host_network=None,
+                 randomize_model_names=None,
                  tfs_image=None,
                  tfs_init_image=None,
                  tfs_config_endpoint=None,
@@ -41,8 +42,8 @@ class K8sConfiguration:
         if json_data:
             self.__dict__ = json_data
         else:
-            self.initial_replicas = initial_replicas
             self.models = models
+            self.available_cpus = available_cpus
             self.available_gpus = available_gpus
             self.actuator_image = actuator_image
             self.actuator_port = actuator_port
@@ -50,6 +51,7 @@ class K8sConfiguration:
             self.k8s_service_type = k8s_service_type
             self.k8s_image_pull_policy = k8s_image_pull_policy
             self.k8s_host_network = k8s_host_network
+            self.randomize_model_names = randomize_model_names
             self.tfs_image = tfs_image
             self.tfs_models_path = "/home/models/"
             self.tfs_config_file_name = self.tfs_models_path + "tf_serving_models.config"
@@ -95,6 +97,7 @@ class ControllerConfiguration:
                  min_cores=None,
                  max_cores=None,
                  control_period=None,
+                 window_time=None,
                  control_type=None,
                  dry_run=None,
                  json_data=None):
@@ -107,6 +110,7 @@ class ControllerConfiguration:
             self.min_cores = min_cores
             self.max_cores = max_cores
             self.control_period = control_period
+            self.window_time = window_time
             self.control_type = control_type
             self.dry_run = dry_run
 

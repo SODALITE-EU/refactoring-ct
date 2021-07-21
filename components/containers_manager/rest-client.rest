@@ -72,8 +72,6 @@ Content-Type: application/json
       "profiled_rt": 0.15
     }
   ],
-  "initial_replicas": 1,
-  "available_gpus": 2,
   "actuator_port": 5000,
   "init_quota": 2,
   "containers": [

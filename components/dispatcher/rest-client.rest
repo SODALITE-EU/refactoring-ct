@@ -3,7 +3,7 @@ GET http://{{host}}:{{port}}/
 Accept: application/json
 
 ### Post a predict to "half_plus_two"
-POST http://{{host}}:{{port}}/predict/half-plus-two-1e2666fb-9cf0-4bf5-99fc-9a68ac3b9033
+POST http://{{host}}:{{port}}/predict/half-plus-two
 Content-Type: application/json
 
 {
@@ -21,7 +21,7 @@ Content-Type: application/json
 }
 
 ### Post a predict to "resnet_NHWC"
-POST http://{{host}}:{{port}}/predict/resnet_NHWC
+POST http://{{host}}:{{port}}/predict/resnet
 Content-Type: application/json
 
 {

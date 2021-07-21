@@ -3,17 +3,22 @@ endpoints_benchmark: ["http://localhost:8000"]
 #  TF Serving endpoint
 endpoint_profiler: "http://192.168.99.108:30001"
 
+# profile model?
+profile: false
+# validate model?
+validate: false
+# benchmark model?
+benchmark: true
+
 # other components endpoint
 requests_store: "http://localhost:5002"
 containers_manager: "http://localhost:5001"
+controller: "http://localhost:5003"
 
 # bench_data folder
-bench_folder: "bench_data"
+# bench_folder: "bench_data"
 # validation_data folder
 validation_folder: "validation_data"
-# output files
-benchmark_result_file: "benchmark_"
-profiling_result_file: "profiling_"
 
 # the number of times needed to repeat the response time measure
 repeat_measure: 10
@@ -22,6 +27,10 @@ warm_up_times: 0
 # concurrent_requests
 concurrent_requests: 2
 
+# benchmarked model (available models: half-plus-two, resnet, alexnet, googlenet, vgg16, skyline-extraction)
+model: "resnet"
+# benchmark strategy (available strategies: server, variable_sla, variable_load, variable_reqs)
+benchmark_strategy: server
 
 # the sampling time for the benchmark
 sample_frequency: 2

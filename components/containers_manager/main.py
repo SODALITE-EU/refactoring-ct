@@ -36,7 +36,7 @@ def get_update_containers():
         for container in containers:
             if container.container_id == data["container_id"] or container.container_id[:12] == data["container_id"]:
                 container.quota = data["cpu_quota"]
-                app.logger.info("Container %s updated")
+                app.logger.info("Container %s updated", data["container_id"])
                 break
         return {"response": "ok"}
     """ elif request.method == 'POST':
@@ -134,7 +134,8 @@ def configure():
                       sla=model["sla"],
                       alpha=model["alpha"],
                       tfs_model_url=model["tfs_model_url"],
-                      initial_replicas=model["initial_replicas"])
+                      required_cpus=model["required_cpus"],
+                      required_gpus=model["required_gpus"])
             if "profiled_rt" in model:
                 m.profiled_rt = model["profiled_rt"]
             models.append(m)

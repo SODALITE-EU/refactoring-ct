@@ -1,6 +1,6 @@
 import time
 
-from models.req import Req, ReqState
+from models.reqdb import Request
 from models.device import Device
 import random
 import requests
@@ -33,29 +33,31 @@ class Dispatcher:
         self.logger.info("Grouping containers for device type: %s", self.device)
 
         self.available_containers = {}
-        if self.device is None:  # select all type of device
-            for model in models:
-                self.available_containers[model.name] = list(
-                    filter(lambda c: (c.model == model.name or c.model == "all") and c.active, self.containers))
-        elif self.device == Device.CPU:  # CPU containers serve only one model
+        # if self.device is None:  # select all type of device
+        #     for model in models:
+        #         self.available_containers[model.name] = list(
+        #             filter(lambda c: (c.model == model.name or c.model == "all") and c.active, self.containers))
+        if self.device == Device.CPU:  # CPU containers serve only one model
             for model in models:
                 self.available_containers[model.name] = list(
                     filter(lambda c: c.model == model.name and c.device == Device.CPU and c.active, self.containers))
-        elif self.device == Device.GPU:  # GPU containers serve all models
+        elif self.device == Device.GPU:  # GPU containers serve one or more models
             for model in models:
                 self.available_containers[model.name] = list(
-                    filter(lambda c: c.device == Device.GPU and c.active, self.containers))
+                    filter(lambda c: c.model == model.name and c.device == Device.GPU and c.active, self.containers))
 
         self.logger.info("Available containers are: %s",
                          {ac: [str(c.container_id) + ", Dev: " + str(c.device) for c in self.available_containers[ac]]
                           for ac in self.available_containers})
 
-        self.dev_indexes = {model.name: 0 for model in models}
+        # randomize starting device
+        self.dev_indexes = {model.name: random.randint(0, len(self.available_containers[model.name]))
+                            for model in models}
 
         # set urllib3 logging level
         logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-    def compute(self, req: Req):
+    def allocate(self, req: Request):
         if req.model not in self.dev_indexes:
             # the model is not available
             return 400, "Error: model not available"
@@ -84,19 +86,24 @@ class Dispatcher:
         req.container = available_containers[dev_index].container
         req.container_id = available_containers[dev_index].container_id
         req.node = available_containers[dev_index].node
-        req.device = self.device
+        req.device = int(self.device)
+        req.endpoint = available_containers[dev_index].endpoint
         req.set_waiting()
 
+    @staticmethod
+    def compute(req: Request, instances, logger=None):
         # call the predict on the selected device
-        payload = {"instances": req.instances}
+        payload = {"instances": instances}
         try:
-            response = requests.post(available_containers[dev_index].endpoint + "/v"
+            response = requests.post(req.endpoint + "/v"
                                      + str(req.version) + "/models/" + req.model + ":predict",
                                      json=payload)
-            # self.logger.info(response.text)
+            if logger:
+                logger.info(response.text)
             req.set_completed(response)
             return
         except Exception as e:
-            self.logger.warning("EXCEPTION %s", e)
+            if logger:
+                logger.warning("EXCEPTION %s", e)
             req.set_error(str(400) + "\n" + str(e))
             return

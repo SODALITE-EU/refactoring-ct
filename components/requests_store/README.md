@@ -6,7 +6,7 @@ This component takes care of requests. It is responsible for storing the informa
 
 This component:
 
-- saves information about requests (in-memory)
+- saves information about requests (with Postgres database)
 - produces metrics
 
 ## Required interfaces
@@ -27,8 +27,13 @@ source env/bin/activate
 pip install -r requirements.txt
 ```
 ### Start
+Start the Postgres DB container
 ```
-python main.py --containers_manager <containers_manager_host>
+docker run --name romadb -e POSTGRES_PASSWORD=romapwd -d -p 5432:5432 postgres
+```
+Then start the component
+```
+gunicorn -w <num_workers> "main:create_app(db_echo=False)" --bind 0.0.0.0:5002
 ```
 
 ## Endpoints

@@ -1,0 +1,61 @@
+version: "3"
+services:
+  containers_manager:
+<<<<<<< HEAD:components/docker-compose.tmp.yml
+    image: nodemanager_containers_manager:latest
+    build: containers_manager
+    network_mode: host
+    ports:
+      - "5001:5001"
+  requests_store:
+    image: nodemanager_requests_store:latest
+    build: requests_store
+    network_mode: host
+    ports:
+      - "5002:5002"
+  controller:
+    image: nodemanager_controller:latest
+    build: controller
+    network_mode: host
+    ports:
+      - "5003:5003"
+  dispatcher:
+    image: nodemanager_dispatcher:latest
+    build: dispatcher
+    network_mode: host
+    ports:
+      - "8000:8000"
+  orchestrator:
+    image: nodemanager_orchestrator:latest
+    build: orchestrator
+    network_mode: host
+=======
+    image: sodaliteh2020/nodemanager_containers_manager
+    ports:
+      - "5001:5001"
+  requests_store:
+    image: sodaliteh2020/nodemanager_requests_store
+    ports:
+      - "5002:5002"
+  controller:
+    image: sodaliteh2020/nodemanager_controller
+    ports:
+      - "5003:5003"
+  dispatcher:
+    image: sodaliteh2020/nodemanager_dispatcher
+    ports:
+      - "8000:8000"
+  orchestrator:
+    image: sodaliteh2020/nodemanager_orchestrator
+>>>>>>> 1b5d777c6e033fdf699de7354f76923fd5f2bbbb:components/docker-compose.yml
+    ports:
+      - "5000:5000"
+  dashboard:
+<<<<<<< HEAD:components/docker-compose.tmp.yml
+    image: nodemanager_dashboard:latest
+    build: dashboard
+=======
+    image: sodaliteh2020/nodemanager_dashboard
+>>>>>>> 1b5d777c6e033fdf699de7354f76923fd5f2bbbb:components/docker-compose.yml
+    ports:
+      - "8080:8080"

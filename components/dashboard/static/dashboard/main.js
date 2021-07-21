@@ -23,6 +23,10 @@ function responseFormatter(data) {
   return data != null && data.length > 200 ? data.slice(0, 200) + "..." : data;
 }
 
+function jsonFormatter(data) {
+  return JSON.stringify(data, null, 2);
+}
+
 function stateFormatter(data) {
   if (data === 0) return "CREATED";
   if (data === 1) return "WAITING";
@@ -129,7 +133,7 @@ refreshConfiguration()
 if($("#table-controller-log").length){
   $("#table-controller-log").bootstrapTable({
   autoRefresh: true,
-  autoRefreshInterval: 5,
+  autoRefreshInterval: 3,
   url: host_controller + "/logs",
   pagination: true,
   search: true,
@@ -145,9 +149,15 @@ if($("#table-controller-log").length){
       sortable: true,
     },
     {
-      field: "msg",
-      title: "msg",
+      field: "type",
+      title: "type",
       sortable: true,
+    },
+    {
+      field: "logs",
+      title: "logs",
+      formatter: jsonFormatter,
+      sortable: false,
     },
   ],
 });
@@ -193,7 +203,7 @@ if($("#table-models").length) {
 if($("#table-containers").length) {
   $("#table-containers").bootstrapTable({
     autoRefresh: true,
-    autoRefreshInterval: 1,
+    autoRefreshInterval: 10,
     url: host_containers + "/containers",
     pagination: false,
     search: true,
@@ -257,8 +267,8 @@ if($("#table-containers").length) {
 if($("#table-requests").length) {
   $("#table-requests").bootstrapTable({
     autoRefresh: true,
-    autoRefreshInterval: 2,
-    url: host_requests + "/requests",
+    autoRefreshInterval: 10,
+    url: host_requests + "/requests?max_reqs=300",
     pagination: true,
     search: true,
     columns: [
@@ -336,7 +346,7 @@ if($("#table-requests").length) {
 if($("#table-metrics-model").length) {
   $("#table-metrics-model").bootstrapTable({
     autoRefresh: true,
-    autoRefreshInterval: 5,
+    autoRefreshInterval: 3,
     url: host_requests + "/metrics/model",
     pagination: false,
     search: false,
@@ -354,6 +364,11 @@ if($("#table-metrics-model").length) {
       {
         field: "metrics.completed",
         title: "metrics.completed",
+        sortable: true,
+      },
+      {
+        field: "metrics.input_reqs",
+        title: "metrics.input_reqs",
         sortable: true,
       },
       {
@@ -408,7 +423,7 @@ if($("#table-metrics-model").length) {
 if($("#table-metrics-container").length) {
   $("#table-metrics-container").bootstrapTable({
     autoRefresh: true,
-    autoRefreshInterval: 2,
+    autoRefreshInterval: 3,
     url: host_requests + "/metrics/container",
     pagination: false,
     search: false,
@@ -431,6 +446,11 @@ if($("#table-metrics-container").length) {
       {
         field: "metrics.completed",
         title: "metrics.completed",
+        sortable: true,
+      },
+      {
+        field: "metrics.input_reqs",
+        title: "metrics.input_reqs",
         sortable: true,
       },
       {
@@ -516,7 +536,8 @@ $(function () {
   let models = [];
   let datasets_avg = [];
   let datasets_on_gpu = [];
-  let datasets_ql = [];
+  let datasets_cre = [];
+  let datasets_com = [];
   let model_SLAs = [];
 
   // set fixed colors
@@ -548,12 +569,19 @@ $(function () {
         fill: true,
         data: [data[i].metrics_from_ts.avg],
       });
-      datasets_ql.push({
+      datasets_cre.push({
         borderColor: colors[i],
         backgroundColor: colors[i],
         label: model,
         fill: true,
         data: [data[i].metrics_from_ts.created / sampling_time_s],
+      });
+      datasets_com.push({
+        borderColor: colors[i],
+        backgroundColor: colors[i],
+        label: model,
+        fill: true,
+        data: [data[i].metrics_from_ts.completed / sampling_time_s],
       });
       datasets_on_gpu.push({
         borderColor: colors[i],
@@ -636,17 +664,51 @@ $(function () {
     },
   });
 
-  let ctx_ql = document.getElementById("chart-ql").getContext("2d");
-  let chart_ql = new Chart(ctx_ql, {
+  let ctx_cre = document.getElementById("chart-cre").getContext("2d");
+  let chart_cre = new Chart(ctx_cre, {
     type: "line",
     data: {
       labels: labels,
-      datasets: datasets_ql,
+      datasets: datasets_cre,
     },
     options: {
       title: {
         display: true,
-        text: "Workload ",
+        text: "Req. created",
+      },
+      animation: false,
+      scales: {
+        yAxes: [
+          {
+            scaleLabel: {
+              display: true,
+              labelString: "# requests",
+            },
+            ticks: {
+              beginAtZero: true,
+            },
+          },
+        ],
+      },
+      elements: {
+        line: {
+          tension: 0,
+        },
+      },
+    },
+  });
+
+  let ctx_com = document.getElementById("chart-com").getContext("2d");
+  let chart_com = new Chart(ctx_com, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: datasets_com,
+    },
+    options: {
+      title: {
+        display: true,
+        text: "Req. completed",
       },
       animation: false,
       scales: {
@@ -753,13 +815,15 @@ $(function () {
       data
     ) {
       let avgs = {};
-      let ql = {};
+      let cre = {};
+      let com = {}
       let on_gpu = {};
 
       for (let i = 0; i < data.length; i++) {
         let model = data[i].model;
         avgs[model] = data[i].metrics_from_ts.avg;
-        ql[model] = data[i].metrics_from_ts.created / sampling_time_s;
+        cre[model] = data[i].metrics_from_ts.created / sampling_time_s;
+        com[model] = data[i].metrics_from_ts.completed / sampling_time_s;
         on_gpu[model] = data[i].metrics_from_ts.on_gpu / sampling_time_s;
       }
 
@@ -782,8 +846,15 @@ $(function () {
         }
       });
 
-      chart_ql.data.datasets.forEach((dataset) => {
-        dataset.data.push(ql[dataset.label]);
+      chart_cre.data.datasets.forEach((dataset) => {
+        dataset.data.push(cre[dataset.label]);
+        if (dataset.data.length > max_samples) {
+          dataset.data.shift();
+        }
+      });
+
+      chart_com.data.datasets.forEach((dataset) => {
+        dataset.data.push(com[dataset.label]);
         if (dataset.data.length > max_samples) {
           dataset.data.shift();
         }
@@ -791,7 +862,8 @@ $(function () {
 
       chart_rt.update();
       chart_on_gpu.update();
-      chart_ql.update();
+      chart_cre.update();
+      chart_com.update();
     });
 
     $.get(host_containers + "/containers", function (data) {

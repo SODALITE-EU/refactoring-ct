@@ -16,7 +16,7 @@ import requests
 TARGET = None
 
 
-def run_thread(i, q, verbose):
+def run_thread(i, q, sleep, verbose):
     start = time.time()
     total_time = 0
     num_requests = 0
@@ -29,6 +29,7 @@ def run_thread(i, q, verbose):
         response_times.append(response.elapsed.total_seconds())
         num_requests += 1
         if verbose: print(predict_request, response.json())
+        time.sleep(sleep)
     end = time.time()
 
     print("T{0}, WorkingTime: {1:.4f}, Reqs: {2}, AvgLat: {3:.4f}".format(i, (end - start), num_requests,
@@ -41,11 +42,12 @@ def main():
     parser.add_argument('--req', type=str)
     parser.add_argument('--threads', type=int)
     parser.add_argument('--requests', type=int)
+    parser.add_argument('--sleep', default=0, type=float)
     parser.add_argument('--verbose', default=0, type=int)
     args = parser.parse_args()
 
     global TARGET
-    TARGET = "http://" + args.target + "/predict"
+    TARGET = "http://" + args.target
 
     print("Verbose: ", args.verbose)
 
@@ -66,8 +68,8 @@ def main():
     # Send requests and report average latency.
     print("Building threads...")
     threads = []
-    for i in range(0, args.threads + 1):
-        threads.append(threading.Thread(target=run_thread, args=(i, q, args.verbose)))
+    for i in range(0, args.threads):
+        threads.append(threading.Thread(target=run_thread, args=(i, q, args.sleep, args.verbose)))
 
     # Start the threads, and block on their completion.
     print("Running threads...")

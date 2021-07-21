@@ -1,13 +1,15 @@
+import argparse
 import logging
+
+import yaml
+
 from models.alexnet import AlexNet
 from models.googlenet import GoogLeNet
 from models.half_plus_two import HalfPlusTwo
 from models.resnet import Resnet
 from models.skyline_extraction import SkylineExtraction
 from models.vgg16 import VGG16
-from models.benchmark import BenchmarkStrategies
 
-PARAMS_FILE = "parameters.yml"
 BENCH_FOLDER = "bench_data"
 
 if __name__ == "__main__":
@@ -16,25 +18,36 @@ if __name__ == "__main__":
                  "%(filename)s:%(lineno)d:%(message)s"
     logging.basicConfig(level='INFO', format=log_format)
 
-    """
-    Models available: half_plus_two, resnet_NHWC, alexnet, googlenet, vgg16, skyline_extraction
-    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", default="parameters.yml", type=str)
+    parser.add_argument("-o", default=None, type=str)
+    args = parser.parse_args()
 
-    # init profiler
+    with open(args.p, 'r') as file:
+        params = yaml.load(file.read(), Loader=yaml.FullLoader)
+
+    # init benchmark
     status = "init"
     logging.info(status)
-    model = Resnet(PARAMS_FILE, "resnet_NHWC", 1, BenchmarkStrategies.VARIABLE_REQS, logging)
-    # model.run_profiling()
-    model.run_benchmark()
-    # model.validate()
 
-    """
-    model = AlexNet(PARAMS_FILE, "alexnet", 1, BenchmarkStrategies.VARIABLE_SLA, logging)
-    model.run_profiling()
+    if params["model"] == "resnet":  # resnet_NHWC
+        model = Resnet(args.p, "resnet", 1, logging, output_file=args.o)
+    elif params["model"] == "alexnet":
+        model = AlexNet(args.p, "alexnet", 1, logging, output_file=args.o)
+    elif params["model"] == "googlenet":
+        model = GoogLeNet(args.p, "googlenet", 1, logging, output_file=args.o)
+    elif params["model"] == "vgg16":
+        model = VGG16(args.p, "vgg16", 1, logging, output_file=args.o)
+    elif params["model"] == "skyline-extraction":
+        model = SkylineExtraction(args.p, "skyline-extraction", 1, logging, output_file=args.o)
+    elif params["model"] == "half-plus-two":
+        model = HalfPlusTwo(args.p, "half-plus-two", 1, logging, output_file=args.o)
+    else:
+        model = HalfPlusTwo(args.p, "half-plus-two", 1, logging, output_file=args.o)
 
-    model = GoogLeNet(PARAMS_FILE, "googlenet", 1, BenchmarkStrategies.VARIABLE_SLA, logging)
-    model.run_profiling()
-
-    model = VGG16(PARAMS_FILE, "vgg16", 1, BenchmarkStrategies.VARIABLE_SLA, logging)
-    model.run_profiling()
-    """
+    if params["profile"]:
+        model.run_profiling()
+    if params["benchmark"]:
+        model.run_benchmark()
+    if params["validate"]:
+        model.validate()

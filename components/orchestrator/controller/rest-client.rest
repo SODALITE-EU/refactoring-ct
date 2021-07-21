@@ -1,0 +1,31 @@
+### Get the status
+GET http://{{host}}:{{port}}/
+Accept: application/json
+
+### Get the logs
+GET http://{{host}}:{{port}}/logs
+Accept: application/json
+
+### Post configuration
+POST http://{{host}}:{{port}}/configuration
+Content-Type: application/json
+
+{
+  "containers_manager": "localhost:5001",
+  "requests_store": "localhost:5002",
+  "min_cores":  0.1,
+  "max_cores": 2,
+  "control_period":  5,
+  "control_type":  "CT",
+  "actuator_port": 5000,
+  "dry_run": true
+}
+
+### Get configuration
+GET http://{{host}}:{{port}}/configuration
+
+### Start the controller
+POST http://{{host}}:{{port}}/start
+
+### Stop the component
+POST http://{{host}}:{{port}}/stop

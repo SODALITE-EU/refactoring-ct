@@ -78,7 +78,7 @@ class Req:
 
     @staticmethod
     def metrics(reqs, from_ts = 0):
-        created = list(filter(lambda r: r.ts_in > float(from_ts), reqs))
+        created = list(filter(lambda r: r.ts_out is None and r.ts_in >= float(from_ts), reqs))
         completed = list(filter(lambda r: r.ts_out is not None and r.ts_out > float(from_ts), reqs))
         resp_times = list(map(lambda r: r.resp_time, completed))
         process_time = list(map(lambda r: r.process_time, completed))

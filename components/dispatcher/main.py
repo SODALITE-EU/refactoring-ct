@@ -1,22 +1,24 @@
+import multiprocessing
 import os
+import uuid
 
 from dispatcher import Dispatcher
 from dispatcher import DispatchingPolicy
-from flask import Flask, jsonify, abort, request
-from models.req import Req
+from flask import Flask, request
+from models.reqdb import Request
 from models.model import Model
 from models.device import Device
 from models.container import Container
-from models.queues_policies import QueuesPolicies, QueuesPolicy
-from concurrent.futures import ThreadPoolExecutor
+from models.queues_policies import QueuesPolicies
 from models.configurations import DispatcherConfiguration
 from flask_cors import CORS
 import logging
 import requests
-import queue
 import coloredlogs
 import time
 import json
+import sqlalchemy as db
+from sqlalchemy.orm import sessionmaker
 
 app = Flask(__name__)
 CORS(app)
@@ -24,24 +26,29 @@ CORS(app)
 status = None
 active = False
 config = None
+log_response = False
 reqs_queues = {}
-log_queue = queue.Queue()
+reqs_log_queue = multiprocessing.Queue()
+reqs_computable_queue = multiprocessing.Queue()
 config_filename = 'config.json'
+db_session = None
 
 
+# get the current status of the component
 @app.route('/', methods=['GET'])
 def get_status():
     get_configuration()
     return {"status": status}
 
 
+# receive predict requests
 @app.route('/predict/<model>', methods=['POST'])
 def predict(model):
     # check if the component is active and the configuration file was loaded (lazy-load)
     if not active and not configure():
         return {'error': 'component not configured'}
 
-    # the component is configured and active
+    # the component is configured and active thus get the request data
     data = request.get_json()
     if not data:
         return {'error': 'input not specified'}
@@ -54,45 +61,42 @@ def predict(model):
 
     # app.logger.info("IN - REQ %s/V%s %s", model, data["version"], data["instances"])
 
-    # Queue and log incoming request
-    req = Req(model, data["version"], data["instances"])
-    reqs_queues[model].put(req)
-    log_queue.put(req)
+    # create the request
+    req = Request(id=str(uuid.uuid4()), model=model, version=data["version"], ts_in=time.time())
+    # put the req in the model queue
+    reqs_queues[model].put((req, data["instances"]))
+    # log request (creation)
+    reqs_log_queue.put(req)
 
     # Forward 200
     return {"status": "ok",
             "id": req.id}
 
 
-def log_consumer():
-    global config
-    while True:
-        payload = log_queue.get().to_json()
-        requests.post(config.requests_store_endpoint, json=payload)
-        time.sleep(0.1)
-
-
-
-def queues_pooling(dispatcher, policy, max_consumers):
-    # Create the pool of consumers
-    consumer_threads_poll = ThreadPoolExecutor(max_workers=max_consumers)
-
+def queues_pooling(reqs_queues, reqs_log_queue, reqs_computable_queue, dispatcher, policy):
     while True:
         selected_queue = policy()
         if not reqs_queues[selected_queue].empty():
-            # Get next request
-            req = reqs_queues[selected_queue].get()
-            # Consume the request
-            consumer_threads_poll.submit(queue_consumer(dispatcher, req))
+            # get next request
+            req, instances = reqs_queues[selected_queue].get()
+            # allocate request
+            dispatcher.allocate(req)
+            # log request (allocation)
+            reqs_log_queue.put(req)
+            # put request in computable
+            reqs_computable_queue.put((req, instances))
         else:
             time.sleep(0.001)
 
 
-def queue_consumer(dispatcher, req):
-    # Forward request (dispatcher)
-    # logging.info("Consumer for %s sending to dispatcher...", dispatcher.device)
-    dispatcher.compute(req)
-    log_queue.put(req)
+def send_request(reqs_computable_queue, reqs_log_queue):
+    while True:
+        req, instances = reqs_computable_queue.get()
+        # Forward request (dispatcher)
+        # logging.info("Consumer for %s sending to dispatcher...", dispatcher.device)
+        Dispatcher.compute(req, instances, log_response)
+        # log request (completed)
+        reqs_log_queue.put(req)
 
 
 def get_data(url):
@@ -104,17 +108,19 @@ def get_data(url):
     return response.json()
 
 
+# get the configuration
 @app.route('/configuration', methods=['POST'])
 def post_configuration():
     global config, status
     logging.info("saving configuration...")
 
-    # read from configuration
+    # read the configuration
     data = request.get_json()
     config = DispatcherConfiguration(json_data=data)
 
     logging.info("configuration: " + str(config.__dict__))
 
+    # save the configuration to file
     with open(config_filename, 'w') as config_file:
         json.dump(config.__dict__, config_file)
 
@@ -151,6 +157,31 @@ def read_config_from_file():
         return False
 
 
+def reqs_saver(reqs_log_queue):
+    while True:
+        req = reqs_log_queue.get()
+        save_request(req)
+
+
+def save_request(req: Request):
+    db_req = db_session.query(Request).get(req.id)
+    if db_req:
+        # update
+        db_req.ts_wait = req.ts_wait
+        db_req.ts_out = req.ts_out
+        db_req.process_time = req.process_time
+        db_req.resp_time = req.resp_time
+        db_req.node = req.node
+        db_req.container = req.container
+        db_req.container_id = req.container_id
+        db_req.device = req.device
+        db_req.state = req.state
+    else:
+        # insert
+        db_session.add(req)
+    db_session.commit()
+
+
 def configure():
     global status, active, reqs_queues, config
 
@@ -182,7 +213,7 @@ def configure():
     logging.info("Found %d models and %d containers", len(models), len(containers))
 
     # init requests queues
-    reqs_queues = {model.name: queue.Queue() for model in models}
+    reqs_queues = {model.name: multiprocessing.Queue() for model in models}
     responses_list = {model.name: [] for model in models}
 
     # init policy
@@ -204,28 +235,36 @@ def configure():
     dispatcher_gpu = Dispatcher(app.logger, models, containers, DispatchingPolicy.ROUND_ROBIN, Device.GPU)
     dispatcher_cpu = Dispatcher(app.logger, models, containers, DispatchingPolicy.ROUND_ROBIN, Device.CPU)
 
-    # start the send requests thread
-    status = "Start send reqs thread"
+    # start the send requests process
+    status = "Start send reqs process"
     logging.info(status)
-    log_consumer_threads_pool = ThreadPoolExecutor(max_workers=config.max_log_consumers)
-    for i in range(config.max_log_consumers):
-        log_consumer_threads_pool.submit(log_consumer)
+    reqs_saver_process = multiprocessing.Process(target=reqs_saver, args=(reqs_log_queue,))
+    reqs_saver_process.start()
 
-    # start the queues consumer threads
-    status = "Start queues consumer threads"
+    # start the queues consumer processes
+    status = "Start queues allocation processes"
     logging.info(status)
 
     if list(filter(lambda c: c.device == Device.GPU and c.active, containers)):
-        # threads that pools from the apps queues and dispatch to gpus
-        polling_gpu_threads_pool = ThreadPoolExecutor(max_workers=config.max_polling_threads)
-        for i in range(config.max_polling_threads):
-            polling_gpu_threads_pool.submit(queues_pooling, dispatcher_gpu, gpu_policy, config.max_consumers_gpu)
+        # create the process that reads the apps queues and dispatch requests to gpus
+        gpu_worker_process = multiprocessing.Process(target=queues_pooling, args=(reqs_queues, reqs_log_queue,
+                                                                                  reqs_computable_queue,
+                                                                                  dispatcher_gpu, gpu_policy,))
+        gpu_worker_process.start()
 
     if list(filter(lambda c: c.device == Device.CPU and c.active, containers)):
-        # threads that pools from the apps queues and dispatch to cpus
-        pooling_cpu_threads_pool = ThreadPoolExecutor(max_workers=config.max_polling_threads)
-        for i in range(config.max_polling_threads):
-            pooling_cpu_threads_pool.submit(queues_pooling, dispatcher_cpu, cpu_policy, config.max_consumers_cpu)
+        # create the process that reads the apps queues and dispatch requests to cpus
+        cpu_worker_process = multiprocessing.Process(target=queues_pooling, args=(reqs_queues, reqs_log_queue,
+                                                                                  reqs_computable_queue,
+                                                                                  dispatcher_cpu, cpu_policy,))
+        cpu_worker_process.start()
+
+    # start the queues consumer process
+    status = "Start queues consumer processe"
+    logging.info(status)
+    sender_worker_process = multiprocessing.Process(target=send_request, args=(reqs_computable_queue, reqs_log_queue,))
+    sender_worker_process.start()
+
 
     status = "active"
     active = True
@@ -233,8 +272,10 @@ def configure():
     return True
 
 
-def create_app(delete_config=False):
-    global status
+def create_app(delete_config=True, debug_response=False, db_echo=False):
+    global status, log_response, db_session
+
+    log_response = debug_response
 
     # init log
     coloredlogs.install(level='DEBUG', milliseconds=True)
@@ -248,6 +289,10 @@ def create_app(delete_config=False):
             os.remove(config_filename)
         except FileNotFoundError as e:
             logging.info("file not found")
+
+    db_engine = db.create_engine('postgresql://postgres:romapwd@localhost/postgres', echo=db_echo)
+    Session = sessionmaker(bind=db_engine)
+    db_session = Session()
 
     status = "inactive"
     logging.info(status)

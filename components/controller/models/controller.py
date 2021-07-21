@@ -1,8 +1,10 @@
+import collections
+
 from .container import Container
 
 
 class Controller:
-    def __init__(self, container: Container):
+    def __init__(self, container: Container, history_size=5):
         self.v_sla = 0
         self.v_gpu = 0
         self.v_cpu = 0
@@ -14,6 +16,8 @@ class Controller:
         self.nc = 0
 
         self.container = container
+        self.mql_history = collections.deque(maxlen=history_size)
+        self.eir_history = collections.deque(maxlen=history_size)
 
     def to_json(self):
         return {

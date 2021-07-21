@@ -9,20 +9,19 @@ import requests
 import yaml
 import statistics as stat
 import numpy as np
-from enum import IntEnum
+from enum import Enum, IntEnum
 import matplotlib.pyplot as plt
 import pickle
-from .models.req import Req, ReqState
 from .models.model import Model
 from apscheduler.schedulers.background import BackgroundScheduler
 import multiprocessing
 
 
-class BenchmarkStrategies(IntEnum):
-    SERVER = 0
-    VARIABLE_SLA = 1
-    VARIABLE_LOAD = 2
-    VARIABLE_REQS = 3
+class BenchmarkStrategies(str, Enum):
+    SERVER = "server"
+    VARIABLE_SLA = "variable_sla"
+    VARIABLE_LOAD = "variable_load"
+    VARIABLE_REQS = "variable_reqs"
 
 
 class Mode(IntEnum):
@@ -32,7 +31,7 @@ class Mode(IntEnum):
 
 class Benchmark:
 
-    def __init__(self, params_file, model, version, benchmark_strategy, logger, output_file=None):
+    def __init__(self, params_file, model_name, version, logger, output_file=None):
         if logger:
             self.logger = logger
         else:
@@ -51,13 +50,14 @@ class Benchmark:
         self.load_parameters(params_file)
 
         # set benchmark strategy
-        self.benchmark_strategy = benchmark_strategy
+        self.benchmark_strategy = self.params.get("benchmark_strategy")
         self.requests_ids = []
 
         self.benchmark_running = False
         self.benchmark_rt = []
         self.benchmark_rt_process = []
-        self.benchmark_req = []
+        self.benchmark_req_cre = []
+        self.benchmark_req_com = []
         self.benchmark_reqs_s = 0
         self.benchmark_sent_reqs = []
         self.benchmark_sent = []
@@ -66,8 +66,11 @@ class Benchmark:
         self.benchmark_updates_count = 0
         self.benchmark_updates_count_max = 0
         self.benchmark_scheduler = None
-        self.benchmark_result_file = self.params.get("benchmark_result_file", None)
-        self.profiling_result_file = self.params.get("profiling_result_file", None)
+        if output_file:
+            self.benchmark_result_file = self.profiling_result_file = output_file
+        else:
+            self.benchmark_result_file = "benchmark_" + self.model.name + ".out"
+            self.profiling_result_file = "profiling_" + self.model.name + ".out"
         self.benchmark_containers = []
         self.sample_frequency = self.params["sample_frequency"]
 
@@ -76,7 +79,8 @@ class Benchmark:
         self.containers_manager = self.params["containers_manager"]
 
         # get model data
-        self.model = Model(json_data=self.get_data(self.containers_manager + "/models/" + model).json())
+        logging.info("getting model data...")
+        self.model = Model(json_data=self.get_data(self.containers_manager + "/models/" + model_name).json())
         self.logger.info(self.model.to_json())
         self.version = version
 
@@ -86,23 +90,27 @@ class Benchmark:
         else:
             self.endpoint_profiler = None
         if "endpoints_benchmark" in self.params.keys():
-            self.endpoints_benchmark = [endpoint_benchmark + "/predict"
+            self.endpoints_benchmark = [endpoint_benchmark + "/predict/" + model_name
                                         for endpoint_benchmark in self.params["endpoints_benchmark"]]
         else:
             self.endpoints_benchmark = None
         self.endpoint = None
+        self.controller_endpoint = self.params["controller"]
 
         # folders
         if "bench_folder" in self.params.keys():
             self.bench_folder = self.params["bench_folder"] + "/"
         else:
-            self.bench_folder = "bench_folder/" + self.model.name + "/"
+            self.bench_folder = "bench_data/" + self.model.name + "/"
         if "validation_folder" in self.params.keys():
             self.validation_folder = self.params["validation_folder"] + "/"
         else:
             self.validation_folder = "validation_data/" + self.model.name + "/"
         self.warm_up_reqs = self.params.get("warm_up_times", 5)
         self.repeat_measure = self.params.get("repeat_measure", 5)
+
+        # controller logs
+        self.benchmark_controller_logs = None
 
     def prepare_request(self, instances):
         if self.mode == Mode.PROFILING:
@@ -177,60 +185,65 @@ class Benchmark:
         x_val = np.arange(len(self.benchmark_rt))
         self.logger.info("avg rt %s", self.benchmark_rt)
         self.logger.info("avg rt process %s", self.benchmark_rt_process)
-        self.logger.info("req %s", self.benchmark_req)
+        self.logger.info("req created %s", self.benchmark_req_cre)
+        self.logger.info("req completed %s", self.benchmark_req_com)
         self.logger.info("reqs sent %s", self.benchmark_sent)
         self.logger.info("model sla %s", self.benchmark_model_sla)
-        self.logger.info("containers %s", self.benchmark_containers)
+        self.logger.info("containers resp # %d", len(self.benchmark_containers))
+        self.logger.info("controller logs # %d", len(self.benchmark_controller_logs))
 
-        plt.plot(x_val, self.benchmark_rt, '--', label="avg RT")
-        plt.title("avg RT")
-        plt.show()
-        plt.plot(x_val, self.benchmark_rt_process, '--', label="avg RT process")
-        plt.title("avg RT process")
-        plt.show()
-        plt.plot(x_val, self.benchmark_req, label="# reqs")
-        plt.title("# reqs")
-        plt.show()
-        plt.plot(x_val, self.benchmark_sent, label="# req sent")
-        plt.title("# reqs sent")
-        plt.show()
-        plt.plot(x_val, self.benchmark_model_sla, label="Model SLA")
-        plt.title("model SLA")
-        plt.show()
+        # plt.plot(x_val, self.benchmark_rt, '--', label="avg RT")
+        # plt.title("avg RT")
+        # plt.show()
+        # plt.plot(x_val, self.benchmark_rt_process, '--', label="avg RT process")
+        # plt.title("avg RT process")
+        # plt.show()
+        # plt.plot(np.arange(len(self.benchmark_req_cre)), self.benchmark_req_cre, label="# reqs created")
+        # plt.title("# reqs")
+        # plt.show()
+        # plt.plot(x_val, self.benchmark_req_com, label="# reqs completed")
+        # plt.title("# reqs")
+        # plt.show()
+        # plt.plot(x_val, self.benchmark_sent, label="# req sent")
+        # plt.title("# reqs sent")
+        # plt.show()
+        # plt.plot(x_val, self.benchmark_model_sla, label="Model SLA")
+        # plt.title("model SLA")
+        # plt.show()
 
     def save_results_benchmark(self):
         if self.benchmark_result_file is not None:
             self.logger.info("Saving to file...")
-            benchmark_data = [self.benchmark_rt, self.benchmark_rt_process, self.benchmark_req, self.benchmark_sent,
-                              self.benchmark_model_sla,
-                              self.benchmark_containers]
-            with open(self.benchmark_result_file + self.model.name + ".out", 'wb') as f:
+            benchmark_data = [self.benchmark_rt, self.benchmark_rt_process, self.benchmark_req_cre, self.benchmark_req_com, self.benchmark_sent,
+                              self.benchmark_model_sla, self.benchmark_containers, self.benchmark_controller_logs]
+            with open(self.benchmark_result_file, 'wb') as f:
                 pickle.dump(benchmark_data, f)
             self.logger.info("Saved")
 
     def sampler(self):
-        old_sent = []
-        for i in range(len(self.bench_data)):
-            old_sent.append(0)
-        while self.benchmark_running:
-            from_ts = time.time() - self.sample_frequency
-            metrics = self.get_data(self.requests_store + '/metrics/model', {'from_ts': from_ts}).json()
-            self.logger.info("%s", metrics)
-            for metric in metrics:
-                if metric["model"] == self.model.name:
-                    self.benchmark_rt.append(metric["metrics_from_ts"]["avg"])
-                    self.benchmark_rt_process.append(metric["metrics_from_ts"]["avg_process"])
-                    self.benchmark_req.append(
-                        metric["metrics_from_ts"]["created"] + metric["metrics_from_ts"]["completed"])
-            sent_list = []
-            for i in range(len(self.bench_data)):
-                sent_list.append(self.benchmark_sent_reqs[i] - old_sent[i])
-                old_sent[i] = self.benchmark_sent_reqs[i]
-            self.benchmark_sent.append(sent_list)
-            self.benchmark_model_sla.append(self.model.sla)
-            self.benchmark_containers.append(self.get_data(self.containers_manager + '/models/' +
-                                                           self.model.name + '/containers'))
-            time.sleep(self.sample_frequency)
+        current_time = time.time()
+        from_ts = current_time - self.sample_frequency
+        metrics_from_ts = self.get_data(self.requests_store + '/metrics/model', {'from_ts': from_ts}).json()
+        metrics = self.get_data(self.requests_store + '/metrics/model').json()
+        self.logger.info("%s", metrics_from_ts)
+        for metric in metrics_from_ts:
+            if metric["model"] == self.model.name:
+                self.benchmark_rt.append(metric["metrics_from_ts"]["avg"])
+                self.benchmark_rt_process.append(metric["metrics_from_ts"]["avg_process"])
+                self.benchmark_req_com.append(metric["metrics_from_ts"]["completed"])
+        for metric in metrics:
+            if metric["model"] == self.model.name:
+                self.benchmark_req_cre.append(metric["metrics"]["created"])
+        # sent_list = []
+        # for i in range(len(self.bench_data)):
+        #     sent_list.append(self.benchmark_sent_reqs[i] - old_sent[i])
+        #     sent_list.append(self.benchmark_sent_reqs[i])
+        #     old_sent[i] = self.benchmark_sent_reqs[i]
+        self.benchmark_sent.append((current_time, self.benchmark_sent_reqs.copy()))
+        self.benchmark_model_sla.append(self.model.sla)
+        self.benchmark_containers.append(self.get_data(self.containers_manager + '/models/' +
+                                                       self.model.name + '/containers'))
+
 
     def benchmark_update(self):
         self.logger.info("updating benchmark conditions...")
@@ -261,7 +274,7 @@ class Benchmark:
 
         self.benchmark_updates_count += 1
         if self.benchmark_updates_count > self.benchmark_updates_count_max:
-            self.benchmark_scheduler.remove_job('benchmark_update')
+            self.benchmark_updates_count = 0
 
     def benchmark_sender(self, reqs_queue):
         self.logger.info("benchmark sender started...")
@@ -275,6 +288,11 @@ class Benchmark:
     def benchmark(self):
         self.logger.info("using strategy %s", self.benchmark_strategy)
         self.logger.info("profiling the model %s with %d bench data", self.model.name, len(self.bench_data))
+
+        self.benchmark_scheduler = BackgroundScheduler()
+        self.benchmark_scheduler.add_job(self.sampler, 'interval', seconds=self.sample_frequency, id='benchmark_sampler')
+        start_ts = time.time()
+
         if self.benchmark_strategy == BenchmarkStrategies.SERVER:
             self.benchmark_data_i = 0
             mu = self.params["server"]["mu"]
@@ -287,11 +305,12 @@ class Benchmark:
             # start the sample thread: measure metrics every t time
             self.benchmark_running = True
             self.benchmark_rt.clear()
-            self.benchmark_req.clear()
-            sampler_thread = threading.Thread(target=self.sampler)
-            sampler_thread.start()
+            self.benchmark_req_cre.clear()
+            self.benchmark_req_com.clear()
 
-            end_t = time.time() + duration
+            self.benchmark_scheduler.start()
+
+            end_t = start_ts + duration
             while end_t - time.time() > 0:
                 self.logger.info("\tremaining: %.2f s", end_t - time.time())
                 self.logger.info("sending %d reqs", reqs_per_s)
@@ -315,6 +334,9 @@ class Benchmark:
                 time.sleep(sleep_t - time_sending)
 
             self.benchmark_running = False
+            self.benchmark_scheduler.remove_job('benchmark_sampler')
+            # get controller logs
+            self.benchmark_controller_logs = self.get_data(self.controller_endpoint + '/logs', {'from_ts': start_ts}).json()
             time.sleep(self.sample_frequency)
 
         elif self.benchmark_strategy == BenchmarkStrategies.VARIABLE_SLA or \
@@ -344,14 +366,12 @@ class Benchmark:
             # init benchmark variables
             self.benchmark_running = True
             self.benchmark_rt.clear()
-            self.benchmark_req.clear()
+            self.benchmark_req_cre.clear()
+            self.benchmark_req_com.clear()
             self.benchmark_updates_count = 1
             self.benchmark_updates_count_max = updates
             for i in range(len(self.bench_data)):
                 self.benchmark_sent_reqs.append(0)
-
-            # start the sample thread: measure metrics every t time
-            sampler_thread = threading.Thread(target=self.sampler)
 
             # creating consumer processes
             reqs_queue = multiprocessing.Queue()
@@ -362,16 +382,15 @@ class Benchmark:
                 processes.append(p)
                 p.start()
 
-            # start the updater
-            self.benchmark_scheduler = BackgroundScheduler()
-            self.benchmark_scheduler.add_job(self.benchmark_update, 'interval', seconds=duration / (updates + 1),
-                                             id='benchmark_update')
-            self.benchmark_scheduler.start()
+            # add the updater
+            self.benchmark_scheduler.add_job(self.benchmark_update, 'interval', seconds=duration / (updates + 1), id='benchmark_update')
 
             self.benchmark_data_i = 0
             model_sla_start = self.model.sla
             end_t = time.time() + duration
-            sampler_thread.start()
+
+            # start the scheduler
+            self.benchmark_scheduler.start()
 
             # start benchmark
             self.logger.info("benchmark will finish at: %s", datetime.datetime.fromtimestamp(end_t))
@@ -381,10 +400,14 @@ class Benchmark:
             self.logger.info("sending...")
             if mode == "constant":
                 while end_t - time.time() > 0:
+                    start_put = time.time()
+                    self.benchmark_data_i = (self.benchmark_data_i + 1) % len(self.bench_data)
                     data = self.bench_data[self.benchmark_data_i]
                     reqs_queue.put(data["request"])
                     self.benchmark_sent_reqs[self.benchmark_data_i] += 1
-                    time.sleep(1 / self.benchmark_reqs_s)
+                    end_put = time.time()
+                    wait_t = max(0, (1 / self.benchmark_reqs_s) - (end_put - start_put))
+                    time.sleep(wait_t)
             elif mode == "burst":
                 while end_t - time.time() > 0:
                     time_start_send = time.time()
@@ -400,14 +423,17 @@ class Benchmark:
 
             # stop benchmark
             self.benchmark_running = False
+            self.benchmark_scheduler.remove_job('benchmark_sampler')
+            self.benchmark_scheduler.remove_job('benchmark_update')
+
             # stop processes
             for i in range(num_proc):
                 reqs_queue.put(None)
             # join processes
             for p in processes:
                 p.join()
-            # wait for the sampler
-            time.sleep(self.sample_frequency)
+            # get controller logs
+            self.benchmark_controller_logs = self.get_data(self.controller_endpoint + '/logs', {'from_ts': start_ts}).json()
 
             # reset the system to the original state
             if self.benchmark_strategy == BenchmarkStrategies.VARIABLE_SLA:
@@ -561,6 +587,6 @@ class Benchmark:
         if self.profiling_result_file is not None:
             self.logger.info("Saving to file...")
             profiling_data = [self.profiling_rt]
-            with open(self.profiling_result_file + self.model.name + ".out", 'wb') as f:
+            with open(self.profiling_result_file, 'wb') as f:
                 pickle.dump(profiling_data, f)
             self.logger.info("Saved")

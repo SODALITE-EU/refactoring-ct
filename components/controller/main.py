@@ -4,6 +4,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify
 from flask_cors import CORS
 from controller_manager import ControllerManager
+from controller_manager_2 import ControllerManager2
 from controller_manager_rules import ControllerManagerRules
 from models.configurations import ControllerConfiguration
 import datetime
@@ -24,8 +25,10 @@ def get_status():
 
 @app.route('/logs', methods=['GET'])
 def get_logs():
+    from_ts = request.args.get('from_ts') or 0.0
+    app.logger.info("Getting logs from " + str(from_ts))
     if controller:
-        return jsonify(controller.get_logs())
+        return jsonify(controller.get_logs(from_ts=from_ts))
     else:
         return {}, 200
 
@@ -79,17 +82,25 @@ def start_controller():
     if config.control_type == "CT":
         controller = ControllerManager(config.models_endpoint,
                                        config.containers_endpoint,
-                                       config.requests_endpoint,
+                                       config.requests_store,
                                        config.actuator_port,
-                                       config.control_period,
+                                       config.window_time,
                                        config.min_cores,
                                        config.max_cores)
+    elif config.control_type == "CT2":
+        controller = ControllerManager2(config.models_endpoint,
+                                        config.containers_endpoint,
+                                        config.requests_store,
+                                        config.actuator_port,
+                                        config.control_period,
+                                        config.min_cores,
+                                        config.max_cores)
     else:
         controller = ControllerManagerRules(config.models_endpoint,
                                             config.containers_endpoint,
-                                            config.requests_endpoint,
+                                            config.requests_store,
                                             config.actuator_port,
-                                            config.control_period,
+                                            config.window_time,
                                             config.min_cores,
                                             config.max_cores)
     if config.dry_run:

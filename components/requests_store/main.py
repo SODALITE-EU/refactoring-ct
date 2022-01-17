@@ -1,6 +1,8 @@
 import json
 import os
-from flask import Flask, jsonify
+import time
+
+from flask import Flask, jsonify, make_response
 from flask import request
 from flask_cors import CORS
 import logging
@@ -12,6 +14,8 @@ from models.configurations import RequestsStoreConfiguration
 import sqlalchemy as db
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import and_
+from prometheus_client import make_wsgi_app, Counter, Gauge, generate_latest
+
 
 app = Flask(__name__)
 CORS(app)
@@ -26,6 +30,19 @@ MAX_RESP_REQS = 1000
 models = []
 containers = []
 
+# Prometheus metrics
+metrics_prefix = "nodemanager_"
+m_completed = Gauge(metrics_prefix + "completed", "Completed requests", ["model", "version"])
+m_created = Gauge(metrics_prefix + "created", "Created requests", ["model", "version"])
+m_input_reqs = Gauge(metrics_prefix + "input_reqs", "Input requests", ["model", "version"])
+m_on_gpu = Gauge(metrics_prefix + "on_gpu", "Number of requests completed by the GPU", ["model", "version"])
+m_on_cpu = Gauge(metrics_prefix + "on_cpu", "Number of requests completed by the CPU", ["model", "version"])
+m_rt_avg = Gauge(metrics_prefix + "avg", "Mean response time", ["model", "version"])
+m_process_avg = Gauge(metrics_prefix + "avg_process", "Mean processing time", ["model", "version"])
+m_rt_dev = Gauge(metrics_prefix + "rt_dev", "Standard deviation response time", ["model", "version"])
+m_rt_min = Gauge(metrics_prefix + "rt_min", "Minimum response time", ["model", "version"])
+m_rt_max = Gauge(metrics_prefix + "rt_max", "Maximum response time", ["model", "version"])
+last_ts = 0
 
 @app.route('/', methods=['GET'])
 def get_status():
@@ -101,6 +118,10 @@ def get_requests_by_node(node):
         .order_by(Request.ts_in.desc())
     return jsonify([req.to_json() for req in reqs])
 
+# # Add prometheus wsgi middleware to route /metrics requests
+# app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
+#     '/metrics': make_wsgi_app()
+# })
 
 @app.route('/metrics/model', methods=['GET'])
 def get_metrics_by_model():
@@ -129,6 +150,44 @@ def get_metrics_by_model():
                  "metrics": Request.metrics(reqs)})
     return jsonify(metrics)
 
+
+@app.route('/metrics')
+def get_prometheus_metrics():
+    global last_ts
+    # update the metrics
+    for model in models:
+        # filter the reqs associated with the model
+        reqs = db_session.query(Request) \
+            .filter(and_(Request.model == model.name, Request.version == model.version)) \
+            .order_by(Request.ts_in.desc())
+
+        metrics = Request.metrics(reqs, last_ts)
+        m_completed.labels(model=model.name, version=model.version).set(
+            metrics["completed"] if metrics["completed"] is not None else 0)
+        m_created.labels(model=model.name, version=model.version).set(
+            metrics["created"] if metrics["created"] is not None else 0)
+        m_input_reqs.labels(model=model.name, version=model.version).set(
+            metrics["input_reqs"] if metrics["input_reqs"] is not None else 0)
+        m_on_gpu.labels(model=model.name, version=model.version).set(
+            metrics["on_gpu"] if metrics["on_gpu"] is not None else 0)
+        m_on_cpu.labels(model=model.name, version=model.version).set(
+            metrics["on_cpu"] if metrics["on_cpu"] is not None else 0)
+        m_rt_avg.labels(model=model.name, version=model.version).set(
+            metrics["avg"] if metrics["avg"] is not None else 0)
+        m_process_avg.labels(model=model.name, version=model.version).set(
+            metrics["avg_process"] if metrics["avg_process"] is not None else 0)
+        m_rt_dev.labels(model=model.name, version=model.version).set(
+            metrics["dev"] if metrics["dev"] is not None else 0)
+        m_rt_min.labels(model=model.name, version=model.version).set(
+            metrics["min"] if metrics["min"] is not None else 0)
+        m_rt_max.labels(model=model.name, version=model.version).set(
+            metrics["max"] if metrics["max"] is not None else 0)
+
+    response = make_response(generate_latest(), 200)
+    response.mimetype = "text/plain"
+
+    last_ts = time.time()
+    return response
 
 @app.route('/metrics/container', methods=['GET'])
 def get_metrics_by_container():
@@ -293,6 +352,7 @@ def get_data(url):
         response = []
     print(response)
     return response.json()
+
 
 
 def create_app(db_echo=False, delete_config=True):

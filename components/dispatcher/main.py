@@ -94,7 +94,7 @@ def send_request(reqs_computable_queue, reqs_log_queue):
         req, instances = reqs_computable_queue.get()
         # Forward request (dispatcher)
         # logging.info("Consumer for %s sending to dispatcher...", dispatcher.device)
-        Dispatcher.compute(req, instances, log_response)
+        Dispatcher.compute(req, instances, logging if log_response else None)
         # log request (completed)
         reqs_log_queue.put(req)
 

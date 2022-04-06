@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine:3.15.4
 COPY . /home
 RUN apk --no-cache add jq
 RUN ["chmod", "+x", "/home/main.sh"]

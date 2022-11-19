@@ -3,6 +3,6 @@ PyYAML
 requests
 matplotlib
 numpy
-pillow==8.3.0
+pillow==9.2.0
 opencv-python
 apscheduler

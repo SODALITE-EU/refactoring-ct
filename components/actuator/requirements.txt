@@ -1,2 +1,4 @@
 flask
 docker
+urllib3>=2.6.0 # not directly required, pinned by Snyk to avoid a vulnerability
+werkzeug>=3.1.4 # not directly required, pinned by Snyk to avoid a vulnerability
